@@ -76,6 +76,8 @@ export function makeMatch(o = {}) {
     botRehearsal: o.botRehearsal ?? 0,
     botAssist: o.botAssist ?? false,
     botPreferBond: o.botPreferBond ?? '',
+    bonusFunds: o.bonusFunds ?? 0,
+    bonusFundsFor: o.bonusFundsFor ?? '',
     botSliceMs: o.botSliceMs,
     clientCombat: o.clientCombat ?? false,
     verify: o.verify ?? 'off',

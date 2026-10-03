@@ -1334,6 +1334,8 @@ export class PlayerState {
     this.addFunds(nonNeg(ev.income) + nonNeg(ev.pending), { reason: 'income' });
     // SP_BOT_ASSIST (Match BOT_ASSIST): an AI teammate's extra coins — kept out of stats.fundsGained (the result screen)
     if (this.isBot && this.m.botAssist) { this.funds += this.m.botAssist.funds; this.dirty(); }
+    // SP_BONUS_FUNDS (Match.bonusFunds): the solo human's practice coins, likewise outside stats.fundsGained
+    if (!this.isBot && this.m.bonusFunds) { this.funds += this.m.bonusFunds; this.dirty(); }
     // temp is NOT wiped here: the last prep's deadline resolved what the player could act on (endPrep); what overflowed
     // after it (battle-result grants, SETTLE merges, returned equipment) is shown and usable in this prep (tempDue).
     // Likewise reward offers of the last prep already expired at its end; what is still queued was earned after it —

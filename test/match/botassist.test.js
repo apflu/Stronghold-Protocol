@@ -130,3 +130,24 @@ test('preferred bond: an unknown bond id is ignored', () => {
   assert.ok(DATA.bonds.steadShip, 'the 坚守 bond the players asked for exists');
   assert.ok(Match);
 });
+
+test('SP_BONUS_FUNDS: the solo human takes the extra coins at every round start (named players only when listed)', () => {
+  const funds = (o) => {
+    const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', fake: true, seed: 5, ...o }).start().toPrep(1);
+    const ps = h.ps('p_0');
+    const out = { funds: ps.funds, gained: ps.stats.fundsGained, bonus: h.m.bonusFunds };
+    h.m.dispose();
+    return out;
+  };
+  const off = funds({});
+  assert.equal(off.bonus, 0);
+  const on = funds({ bonusFunds: 3 });
+  assert.equal(on.funds, off.funds + 3);
+  assert.equal(on.gained, off.gained, 'not counted as gained funds');
+  assert.equal(funds({ bonusFunds: 3, bonusFundsFor: 'P0, someone' }).funds, off.funds + 3, 'listed nickname');
+  assert.equal(funds({ bonusFunds: 3, bonusFundsFor: 'someone' }).funds, off.funds, 'not listed');
+  assert.equal(funds({ bonusFunds: 999 }).bonus, 50, 'capped');
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 1, bots: 1, fake: true, bonusFunds: 3 });
+  assert.equal(h.m.bonusFunds, 0, 'solo only');
+  h.m.dispose();
+});

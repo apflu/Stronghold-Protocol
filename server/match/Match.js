@@ -95,6 +95,9 @@
 //                      parameters, or null)
 //   opts.botPreferBond bond id (env SP_BOT_PREFER_BOND, default none): every bot builds this bond to its top threshold
 //                      first (bot.js; an unknown id is ignored — m.botPreferBond = the id, or null)
+//   opts.bonusFunds    extra coins per round start for the human of a solo match (env SP_BONUS_FUNDS, 0–50, default 0)
+//   opts.bonusFundsFor nicknames that get them (env SP_BONUS_FUNDS_FOR, comma-separated; empty = every player)
+//                      — a host's practice aid; m.bonusFunds = the coins for this match's human, or 0
 //
 // Engine-only extra options (tests / tools; the lobby never passes them):
 //   opts.scheduler     RealScheduler (default, uses opts.now) | VirtualScheduler (./scheduler.js)
@@ -272,6 +275,12 @@ export class Match {
     const prefer = String(opts.botPreferBond ?? env('SP_BOT_PREFER_BOND') ?? '').trim();
     /** bond every bot builds to its top threshold first (bot.js), or null */
     this.botPreferBond = prefer && this.gd.bond(prefer) ? prefer : null;
+    const bonus = Math.trunc(Number(opts.bonusFunds ?? env('SP_BONUS_FUNDS') ?? 0));
+    const bonusFor = String(opts.bonusFundsFor ?? env('SP_BONUS_FUNDS_FOR') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    const human = opts.seats.find((s) => s && !s.isBot);
+    /** SP_BONUS_FUNDS: extra coins per round start for the solo human (PlayerState.startRound), or 0 */
+    this.bonusFunds = this.isSolo && human && Number.isFinite(bonus) && bonus > 0 && (!bonusFor.length || bonusFor.includes(String(human.name ?? '').trim()))
+      ? Math.min(bonus, 50) : 0;
     /** wall-clock ms per slice of a server-run normal / 联防 field (virtual time: at once) */
     this.headlessSliceMs = Number.isFinite(opts.headlessSliceMs) && opts.headlessSliceMs > 0 ? opts.headlessSliceMs : this.sched.virtual ? Infinity : HEADLESS_SLICE_MS;
     this.verifyStats = { checked: 0, mismatches: 0, rejected: 0, takeovers: 0 };
