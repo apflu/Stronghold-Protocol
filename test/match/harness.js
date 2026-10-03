@@ -7,7 +7,8 @@
 // the battleId prefix), data (default: real data/*.json),
 // fake (true → test/match/fakeBattle.js as BattleClass), script (FakeBattle.script), registry, instant (virtual
 // scheduler runs battles synchronously; default true), timerScale, battleContent, botRehearsal (default 0),
-// botSliceMs (bot rehearsal slice budget; default: unbounded in virtual time).
+// botSliceMs (bot rehearsal slice budget; default: unbounded in virtual time), botAssist (default false) / botPreferBond
+// (default none) — never read from SP_BOT_ASSIST / SP_BOT_PREFER_BOND here.
 // Combat mode: clientCombat (default false here: the legacy server-run mode most suites were written for; production
 // defaults to client-side combat, DESIGN §14). With clientCombat: true every human gets a scripted browser
 // (test/match/simClient.js SimClient: h.clients) unless clients: false; pace 'instant' | 'paced', perPlayer
@@ -73,6 +74,8 @@ export function makeMatch(o = {}) {
     // bot layout rehearsal (extra simulated battles per bot prep) is off unless a test asks for it: it multiplies the
     // simulation work of full-match suites; test/match/bot.test.js covers it
     botRehearsal: o.botRehearsal ?? 0,
+    botAssist: o.botAssist ?? false,
+    botPreferBond: o.botPreferBond ?? '',
     botSliceMs: o.botSliceMs,
     clientCombat: o.clientCombat ?? false,
     verify: o.verify ?? 'off',

@@ -90,6 +90,12 @@
 //                      ('sample': ~1 in 8, in a later callback, mismatches logged; 'all': before accepting — the
 //                      server's result wins on a mismatch)
 //
+//   opts.botAssist     boolean (env SP_BOT_ASSIST=1|on, default off): quiet help for AI teammates — see BOT_ASSIST; it
+//                      only applies to co-op matches with ≥ 1 human seat on BOT_ASSIST_DIFFICULTIES (m.botAssist = the
+//                      parameters, or null)
+//   opts.botPreferBond bond id (env SP_BOT_PREFER_BOND, default none): every bot builds this bond to its top threshold
+//                      first (bot.js; an unknown id is ignored — m.botPreferBond = the id, or null)
+//
 // Engine-only extra options (tests / tools; the lobby never passes them):
 //   opts.scheduler     RealScheduler (default, uses opts.now) | VirtualScheduler (./scheduler.js)
 //   opts.registry      MetaRegistry (default: built-ins + content, ./effectsMeta.js getDefaultRegistry())
@@ -145,6 +151,19 @@ import { buildResult } from './results.js';
 import { botPrepBeginSteps, botPrepEndSteps, botPickBand, botPickCard } from './bot.js';
 
 const BOT_REHEARSAL_DEFAULT = 3;
+/**
+ * SP_BOT_ASSIST (co-op 绝境 / 终极 with humans): parameters of the quiet help for AI teammates, nothing a teammate sees
+ * directly (no LP, HP or stats) — bots take `funds` extra coins at every round start (PlayerState.startRound), each
+ * chess slot of a bot's shop is, with probability `shopLuck`, drawn among the bases the bot owns but has not merged
+ * that no other alive player holds a pair of (PlayerState._rollChessSlot, on the bots' rng stream), and from round
+ * `lateTierFrom` the bot weighs operator power × `lateTier` (bot.js lateTierMul). Measured with tools/matchrun-style
+ * runs (同盟 终极, 3 stronger seats + 1 AI, 60 seeds): the AI reaches the Final Assault 19/60 instead of 2/60, leaks per
+ * late round 14.6 → 7.3, the other seats' elites unchanged.
+ */
+export const BOT_ASSIST = Object.freeze({ funds: 2, shopLuck: 0.4, lateTierFrom: 8, lateTier: 1.5 });
+export const BOT_ASSIST_DIFFICULTIES = Object.freeze(['HARD', 'ABYSS']);
+/** SP_BOT_ASSIST → boolean. */
+export const parseFlag = (v) => ['1', 'on', 'true', 'yes'].includes(String(v ?? '').trim().toLowerCase());
 /** Wall-clock ms of bot layout rehearsal per scheduler callback (real time; virtual time runs it in one go). */
 const BOT_SLICE_MS = 8;
 const GAME_TYPES = new Set(Object.keys(C2S).filter((t) => Object.hasOwn(C2S, t) && (t.startsWith('g.') || t.startsWith('b.'))));
@@ -247,6 +266,12 @@ export class Match {
     /** client-side combat (DESIGN §14) — see the header */
     this.clientCombat = opts.clientCombat != null ? !!opts.clientCombat : envClientCombat();
     this.verifyMode = parseVerify(opts.verify ?? env('SP_VERIFY'));
+    const assist = opts.botAssist != null ? !!opts.botAssist : parseFlag(env('SP_BOT_ASSIST'));
+    /** BOT_ASSIST parameters when the quiet help for AI teammates applies to this match, else null */
+    this.botAssist = assist && !this.isSolo && BOT_ASSIST_DIFFICULTIES.includes(String(this.difficulty).toUpperCase()) && opts.seats.some((s) => s && !s.isBot) ? BOT_ASSIST : null;
+    const prefer = String(opts.botPreferBond ?? env('SP_BOT_PREFER_BOND') ?? '').trim();
+    /** bond every bot builds to its top threshold first (bot.js), or null */
+    this.botPreferBond = prefer && this.gd.bond(prefer) ? prefer : null;
     /** wall-clock ms per slice of a server-run normal / 联防 field (virtual time: at once) */
     this.headlessSliceMs = Number.isFinite(opts.headlessSliceMs) && opts.headlessSliceMs > 0 ? opts.headlessSliceMs : this.sched.virtual ? Infinity : HEADLESS_SLICE_MS;
     this.verifyStats = { checked: 0, mismatches: 0, rejected: 0, takeovers: 0 };

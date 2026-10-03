@@ -770,6 +770,24 @@ export class PlayerState {
 
   _rollChessSlot() {
     const id = this.m.pool.roll(this.m.rngShop, { maxTier: this.shop.level });
+    // the normal roll is always drawn first, so the shop rng stream (every player's rolls) is the same with or without it
+    const lucky = this._assistChessSlot();
+    if (lucky) return lucky;
+    return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
+  }
+
+  /**
+   * SP_BOT_ASSIST (Match BOT_ASSIST): with probability shopLuck an AI teammate's chess slot is drawn (copy-weighted, like
+   * any roll) among the bases it owns but has not merged, leaving out those another alive player holds a pair of —
+   * the bot merges more without taking what a teammate is merging. It draws on the bots' rng stream only (the slot's
+   * normal rngShop draw is still made). null = keep the normal roll.
+   */
+  _assistChessSlot() {
+    const a = this.m.botAssist;
+    if (!a || !this.isBot || !(a.shopLuck > 0) || this.m.rngBots() >= a.shopLuck) return null;
+    const others = (this.m.order || []).filter((q) => q !== this && q.alive);
+    const filter = (id) => !this.gd.isGolden(id) && this.countCopies(id) >= 1 && !others.some((q) => q.countCopies(id) >= 2);
+    const id = this.m.pool.roll(this.m.rngBots, { maxTier: this.shop.level, filter });
     return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
   }
 
@@ -1314,6 +1332,8 @@ export class PlayerState {
     this.m.dispatch(this, 'onIncome', ev);
     const nonNeg = (v) => (Number.isFinite(v) && v > 0 ? Math.trunc(v) : 0);
     this.addFunds(nonNeg(ev.income) + nonNeg(ev.pending), { reason: 'income' });
+    // SP_BOT_ASSIST (Match BOT_ASSIST): an AI teammate's extra coins — kept out of stats.fundsGained (the result screen)
+    if (this.isBot && this.m.botAssist) { this.funds += this.m.botAssist.funds; this.dirty(); }
     // temp is NOT wiped here: the last prep's deadline resolved what the player could act on (endPrep); what overflowed
     // after it (battle-result grants, SETTLE merges, returned equipment) is shown and usable in this prep (tempDue).
     // Likewise reward offers of the last prep already expired at its end; what is still queued was earned after it —

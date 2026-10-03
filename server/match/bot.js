@@ -63,6 +63,21 @@ export function runSteps(gen) {
 /** Shop level the bot aims for at the start of round r (index = round). */
 const LEVEL_TARGET = [1, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5, 5, 6, 6, 6, 6];
 const TIER_POWER = [0, 10, 12.5, 15, 18, 21.5, 25];
+/** SP_BOT_ASSIST (Match BOT_ASSIST): late rounds weigh operator power more (swap low tiers out for high ones). */
+const lateTierMul = (m) => (m.botAssist && m.round >= m.botAssist.lateTierFrom ? m.botAssist.lateTier : 1);
+// Both the assist and the preferred bond are for AI seats only: a human on AI 托管 / 暂离 keeps the plain bot play
+// (context() sets ctx.late / ctx.prefer from ps.isBot).
+/** SP_BOT_PREFER_BOND (Match.botPreferBond): value of a member while the bond is short of its top threshold, and of a
+ *  lineup that reaches it (players asked for AI teammates that play 3 坚守). */
+const PREFER_BUY = 20;
+const PREFER_LINEUP = 30;
+/** Top threshold (distinct members) of the preferred bond, or 0 when none is set. */
+function preferTop(m) {
+  const b = m.botPreferBond ? m.gd.bond(m.botPreferBond) : null;
+  if (!b) return 0;
+  const th = Array.isArray(b.thresholds) && b.thresholds.length ? b.thresholds : [b.activeCount || 2];
+  return Math.max(...th);
+}
 /** Prep-side 特质 that keep adding bond layers every round / every refresh (a player's main layer engine). */
 const RECURRING_TRAIT_EVENTS = new Set(['SERVER_PREP_START', 'SERVER_PREP_FIN', 'SERVER_REFRESH_SHOP']);
 const LAYER_TRAIT_RE = /BOND|LAYER/;
@@ -174,8 +189,9 @@ function roles(m, ps) {
 }
 
 /** Bond value of adding chess `c` to what is owned (owned counts exclude it). */
-function bondValue(m, c, owned, focus) {
+function bondValue(m, c, owned, focus, pref = null) {
   let v = 0;
+  if (pref && ((c && c.bonds) || []).includes(pref) && (owned.counts.get(pref) || 0) < preferTop(m)) v += PREFER_BUY;
   for (const b of (c && c.bonds) || []) {
     const bond = m.gd.bond(b);
     if (!bond || m.gd.modeInactiveBonds.has(b)) continue;
@@ -225,7 +241,7 @@ function traitsOf(m, c) {
 function unitBase(m, piece, ctx) {
   const c = chessRec(m, piece.id);
   if (!c) return 0;
-  let v = power(c) + (piece.items ? piece.items.length * 5 : 0);
+  let v = power(c) * ctx.late + (piece.items ? piece.items.length * 5 : 0);
   if (m.round <= 11) v += traitsOf(m, c).recurring * 4;
   if (c.attackKind === 'none' && !isHealer(c)) v -= 6;
   if (ctx.fly > 0 && hitsFly(c)) v += 2;
@@ -236,7 +252,7 @@ function unitBase(m, piece, ctx) {
 function pieceValue(m, ps, piece, ctx) {
   const c = chessRec(m, piece.id);
   if (!c) return 0;
-  return unitBase(m, piece, ctx) + bondValue(m, c, ownedBonds(m, ps, piece.uid), ctx.focus) * 0.8;
+  return unitBase(m, piece, ctx) + bondValue(m, c, ownedBonds(m, ps, piece.uid), ctx.focus, ctx.prefer) * 0.8;
 }
 
 /**
@@ -257,6 +273,12 @@ function lineupScore(m, ps, set, ctx) {
     const bond = gd.bond(id);
     const w = bond && bond.isCore ? 14 : 9;
     v += b.tier * w + Math.min(12, (b.layers || 0) * 0.1) + (id === ctx.focus ? 6 : 0);
+  }
+  const pref = ctx.prefer;
+  if (pref) {
+    const members = new Set();
+    for (const p of set) { const c = chessRec(m, p.id); if (c && (c.bonds || []).includes(pref)) members.add(gd.baseIdOf(p.id)); }
+    if (members.size >= preferTop(m)) v += PREFER_LINEUP;
   }
   let blockers = 0;
   let air = 0;
@@ -300,7 +322,7 @@ function buyScore(m, ps, id, ctx) {
   const gd = m.gd;
   const c = chessRec(m, id);
   if (!c) return 0;
-  let s = power(c) * 0.6;
+  let s = power(c) * 0.6 * ctx.late;
   const tr = traitsOf(m, c);
   if (m.round <= 11) s += tr.recurring * 3 + tr.gain * 2 + tr.econ * (m.round <= 7 ? 2 : 0);
   const base = gd.baseIdOf(id);
@@ -309,7 +331,7 @@ function buyScore(m, ps, id, ctx) {
     const need = gd.mergeCount(base) || 3;
     if (copies > 0) s += copies + 1 >= need ? 36 : 10;
   }
-  if (!ctx.owned.bases.has(base)) s += bondValue(m, c, ctx.owned, ctx.focus);
+  if (!ctx.owned.bases.has(base)) s += bondValue(m, c, ctx.owned, ctx.focus, ctx.prefer);
   // role needs
   if (isBlocker(c) && ctx.roles.blockers < 2) s += 10;
   if (hitsFly(c) && ctx.fly > 0 && ctx.roles.antiAir < 2) s += 8;
@@ -801,7 +823,10 @@ function canUseItem(m, ps, item) {
 function context(m, ps) {
   const owned = ownedBonds(m, ps);
   const model = fieldModel(m, ps);
-  return { owned, focus: focusBond(m, ps, owned), roles: roles(m, ps), fly: model.flyTotal, model };
+  return {
+    owned, focus: focusBond(m, ps, owned), roles: roles(m, ps), fly: model.flyTotal, model,
+    late: ps.isBot ? lateTierMul(m) : 1, prefer: ps.isBot ? m.botPreferBond : null,
+  };
 }
 
 /** Sell the weakest bench chess that is not part of a merge pair (or anything when keepPairs is false). */

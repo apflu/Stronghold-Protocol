@@ -13,7 +13,8 @@
 # Without any art the game still runs with placeholder visuals.
 #
 # Run:  docker run -d --name stronghold -p 3000:3000 --restart unless-stopped stronghold-protocol
-# Env:  PORT (3000), HOST (0.0.0.0), SP_COMBAT (client|server), SP_VERIFY (off|sample|all), TRUST_PROXY (auto|1|0), DEBUG
+# Env:  PORT (3000), HOST (0.0.0.0), SP_COMBAT (client|server), SP_VERIFY (off|sample|all), TRUST_PROXY (auto|1|0), DEBUG,
+#       SP_BOT_ASSIST (1 = quiet help for AI teammates, co-op 绝境/终极), SP_BOT_PREFER_BOND (bond id, e.g. steadShip)
 
 ARG NODE_IMAGE=node:22-alpine
 

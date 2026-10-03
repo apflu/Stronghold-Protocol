@@ -193,6 +193,18 @@ wall clock, checked every 4 ticks; one scheduler callback each, so other rooms' 
 flowing), then `botPrepEnd` (the rehearsed layout when it won, temp, Ready). The prep ending first drops the job (the
 default layout stays). Virtual time runs it in one go (same decisions). Tests default rehearsal to 0
 (`test/match/harness.js`); `tools/matchrun.mjs --rehearsal N` sets it.
+**Assist (`SP_BOT_ASSIST`, `Match.BOT_ASSIST`):** off by default; on, it applies to co-op 绝境 / 终极 matches with a human
+seat (`m.botAssist`, else null) and only helps in ways a teammate does not see directly — no LP, HP or stat change: bots
+take +2 coins at every round start (outside `stats.fundsGained`), each chess slot of a bot's shop is with probability
+0.4 drawn on the bots' rng among the bases it owns unmerged that no other alive player holds a pair of (the slot's normal
+`rngShop` draw is still made, so the shop stream does not move), and from R8 operator power weighs × 1.5 (swap low tiers
+out; AI seats only — a human on AI 托管 / 暂离 keeps the plain bot play). Measured (同盟 终极, 3 stronger seats + 1 AI, 60 seeds): the AI reaches the Final Assault 19/60 instead of 2/60,
+late-round leaks 14.6 → 7.3, perfect late rounds 3 → 25 %, the other seats' elites unchanged. Each part alone moved
+little; the coins and the shop luck together do (merges need both). `test/match/botassist.test.js`.
+**Preferred bond (`SP_BOT_PREFER_BOND`, `m.botPreferBond`):** a bond id (players asked for 3 坚守, `steadShip`): members
+score +20 while the bot owns fewer than the bond's top threshold, a lineup reaching it +30 (AI seats only). Bots then field 3 坚守 in
+≈ 60 % of their boards from R6 (16 % without); measured neutral on strength. 坚守's share only covers its own player's
+operators (bonds/addon/battle.js), so it does not shield teammates on shared fields.
 
 ---
 
