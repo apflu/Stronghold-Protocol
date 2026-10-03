@@ -316,7 +316,7 @@ export function LobbyScreen() {
           <//>
           <div class="create-box__hint">
             ${online && guest
-              ? html`<span>本实例仅受邀玩家可以创建房间（包括独立模拟）。请向朋友要 ${ROOM_CODE_LEN} 位同盟密钥，在左侧加入他们的同盟。</span>`
+              ? html`<span>${me.note ? `${me.note} ` : '本实例仅受邀玩家可以创建房间（包括独立模拟）。'}请向朋友要 ${ROOM_CODE_LEN} 位同盟密钥，在左侧加入他们的同盟。</span>`
               : online
               ? html`<span>${roomMode === 'solo' ? '创建后即可开始模拟' : '创建后可邀请好友或添加 AI 队友'}</span>`
               : html`<${Spinner} size="sm" label="CONNECTING" />`}

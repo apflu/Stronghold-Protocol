@@ -662,6 +662,7 @@ export class Network {
 
     const welcome = { t: 'welcome', playerId: session.playerId, token: session.token, name: session.name, serverNow: now, version: PROTOCOL_VERSION, resumed };
     if (this.opts.memberFlag) welcome.member = !!session.access; // SP_ACCESS=host: may this player create rooms
+    if (this.opts.memberFlag && !session.access && typeof this.opts.guestNote === 'string') welcome.note = this.opts.guestNote.slice(0, 200); // the host's words
     if (validRid(rid)) welcome.rid = rid;
     this.reply(conn, welcome);
     try {

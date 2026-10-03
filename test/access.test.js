@@ -112,7 +112,7 @@ test('server (SP_ACCESS=watch): nobody is blocked; open by default', async () =>
 test('server (SP_ACCESS=host): everyone plays, only invited devices create rooms — enforced by the server', async () => {
   const file = tmpFile();
   const { code } = new AccessStore(file).createInvite('host');
-  const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, access: 'host', accessFile: file });
+  const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, access: 'host', accessFile: file, accessMessage: '私有实例，请联系管理员' });
   try {
     const port = srv.port;
     assert.equal((await get(port, '/')).status, 200, 'the site is open');
@@ -121,6 +121,8 @@ test('server (SP_ACCESS=host): everyone plays, only invited devices create rooms
     assert.equal(member.w.member, true);
     const guest = await hello(port, null, 'Guest');
     assert.equal(guest.w.member, false, 'welcome tells the client (it greys out room creation)');
+    assert.equal(guest.w.note, '私有实例，请联系管理员', 'and the host\'s note for guests');
+    assert.equal(member.w.note, undefined);
     // a guest's room.create is refused whatever the client sends (solo included)
     for (const mode of ['coop', 'solo']) {
       const r = await guest.c.request({ t: 'room.create', mode, difficulty: 'NORMAL' });

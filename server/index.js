@@ -547,6 +547,7 @@ export async function startServer(opts = {}) {
   };
   if (access && accessMode === 'host') {
     netOptions.memberFlag = true; // welcome.member: the lobby greys out room creation for guests
+    if (String(opts.accessMessage ?? process.env.SP_ACCESS_MESSAGE ?? '').trim()) netOptions.guestNote = gateText; // shown to guests there
     lobbyOptions.membersCreateOnly = true; // enforced by the lobby (server/lobby.js create), never by the client
   }
   if (access) {
