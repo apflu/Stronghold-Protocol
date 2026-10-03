@@ -21,7 +21,7 @@
 
 import { html, Icon, TierChip, MicroLabel, Button, confirmDialog, useTicker } from './components.js';
 import { Img, RichText, UnitThumb, BondGlyph, GIcon } from './gameComponents.js';
-import { attackInterval, rangeGridBox, fmtNum, tileKey, chessLoadout, nextThreshold, bondTier } from './gameLogic.js';
+import { attackInterval, rangeGridBox, fmtNum, tileKey, chessLoadout, nextThreshold, bondTier, pieceBondIds } from './gameLogic.js';
 import { chessPortraitUrl, skillIconUrl, skillRecordIconUrl, profIconUrl, subProfIconUrl, itemIconUrl, enemyIconUrl, tokenAvatarUrl, factionIconUrl, uiUrl, moduleTypeIconUrl } from './assetUrls.js';
 import { data } from '../data.js';
 import { attackRangeGrid } from '../../../shared/loadoutRecord.js';
@@ -244,7 +244,7 @@ export function ChessDetail({ chess, piece, unit, snapHp, editable, onSell, bond
           <span class="dhead__pos">${c.position === 'MELEE' ? '近战位' : '远程位'}</span>
         </div>
         ${hp ? html`<div class="dhp"><i style=${`width:${Math.max(0, Math.min(100, (hp.hp / Math.max(1, hp.max)) * 100))}%`}></i><span class="num">${fmtNum(hp.hp)} / ${fmtNum(hp.max)}</span></div>` : null}
-        <${BondChips} bondIds=${c.bonds} bonds=${bonds} onBond=${onBond} />
+        <${BondChips} bondIds=${pieceBondIds(c, items, (id) => data.lookup('items', id))} bonds=${bonds} onBond=${onBond} />
       </div>
     </div>`;
   blocks.garrison = garrison ? html`<${GarrisonBlock} key="garrison" garrison=${garrison} m=${m} />` : null;

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   phaseMode, phaseBanner, isCombatPhase, isBossPhase, countdownState, phaseTotalSeconds, sortBonds, bondTier, nextThreshold,
-  bondMembers, bannedPerBond, priceTone, mergeProgress, shopBlockReason, deploySets, indexPieces, placementContext, canPlace,
+  bondMembers, pieceBondIds, bannedPerBond, priceTone, mergeProgress, shopBlockReason, deploySets, indexPieces, placementContext, canPlace,
   boardTargets, dropIntent, normalizeDraft, normalizeSp, groupEnemies, factionTypes, snapHud, bossFrac, attackInterval, fmtNum,
   rangeGridBox, shortcutFor, sanitizeSettings, DEFAULT_SETTINGS, normalizeResult, cycleField, fieldLabel, homeFieldId,
   activeBubbles, sortedPlayers, tileKey, prepCapsuleLabel, prepCamera, dropFailureReason,
@@ -140,6 +140,23 @@ describe('bonds', () => {
     assert.equal(byId.get(m3).banned, true);
     assert.equal(rows[0].id, m1, 'on-board first');
     assert.equal(rows.length, b.visibleMembers.length);
+  });
+  test('变形同构体 grants: pieceBondIds and the bond popup members follow the server rule (bondsMeta pieceBonds)', () => {
+    const carrier = Object.values(chess).find((c) => c.visible && !c.isGolden && !(c.bonds || []).includes('egirShip'));
+    const iso = 'chess_item_6_09_e_a';
+    const blade = 'chess_item_3_07_e_a'; // 阿戈尔重刃 → egirShip
+    assert.equal(items[iso].canGiveBond, true);
+    assert.equal(items[blade].giveBondId, 'egirShip');
+    assert.deepEqual(pieceBondIds(carrier, [{ uid: 1, id: iso }, { uid: 2, id: blade }], getItem), [...carrier.bonds, 'egirShip']);
+    assert.deepEqual(pieceBondIds(carrier, [iso, blade], getItem), [...carrier.bonds, 'egirShip'], 'plain ids too');
+    assert.deepEqual(pieceBondIds(carrier, [{ id: blade }], getItem), carrier.bonds, 'the blade alone grants nothing');
+    assert.deepEqual(pieceBondIds(carrier, [{ id: iso }], getItem), carrier.bonds, 'the isomorph alone grants nothing');
+    const b = bonds.egirShip;
+    const priv = privWith({ board: [{ ...piece(carrier.chessId), row: 9, col: 3, items: [{ uid: 1, id: iso }, { uid: 2, id: blade }] }] });
+    const rows = bondMembers(b, priv, [], getChess, getItem);
+    assert.equal(rows.length, b.visibleMembers.length + 1);
+    assert.deepEqual(rows[0], { id: carrier.chessId, tier: carrier.tier, name: carrier.name, onBoard: true, owned: true, banned: false, granted: true });
+    assert.equal(bondMembers(b, priv, [], getChess).length, b.visibleMembers.length, 'no item lookup: own members only');
   });
   test('bannedPerBond counts banned visible members', () => {
     const b = bonds.deputShip;
