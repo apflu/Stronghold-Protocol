@@ -37,6 +37,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Network, SessionRegistry, NET_DEFAULTS } from './net.js';
 import { Lobby } from './lobby.js';
+import { eventLog } from './match/eventlog.js';
 import { getData, loadData } from './data.js';
 import { PROTOCOL_VERSION, APP_VERSION } from '../shared/constants.js';
 
@@ -513,6 +514,12 @@ export async function startServer(opts = {}) {
   const lobbyOptions = {};
   for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs']) {
     if (opts[k] != null) lobbyOptions[k] = opts[k];
+  }
+  // the host's event log (docs/DEPLOY.md「事件日志」; tools/logs.mjs reads it)
+  const logDir = opts.logDir ?? process.env.SP_LOG_DIR ?? '';
+  if (logDir && !eventLog.enabled) {
+    if (eventLog.open(logDir)) log.info(`[log] event log → ${logDir}`);
+    else log.warn(`[log] SP_LOG_DIR ${logDir} is not writable — event log off`);
   }
   const lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, options: lobbyOptions });
   const network = new Network({ registry, handler: lobby, log, options: netOptions });

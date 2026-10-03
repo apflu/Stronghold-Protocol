@@ -152,6 +152,7 @@ import { buildBattleSpec, createBattleFromSpec, resultDigest, compactResult as c
 import { CreditPool } from './finalAssault.js';
 import { buildResult } from './results.js';
 import { botPrepBeginSteps, botPrepEndSteps, botPickBand, botPickCard } from './bot.js';
+import { instrumentMatch, logMatchStart, logMatchEnd } from './eventlog.js';
 
 const BOT_REHEARSAL_DEFAULT = 3;
 /**
@@ -390,6 +391,8 @@ export class Match {
     this.hiddenReached = false;
     this.outcome = null;
     this._turnToken = 0;
+    // the host's event log (SP_LOG_DIR; no-op when off): wraps this match's and its players' methods
+    instrumentMatch(this);
   }
 
   // ===================================================================================================
@@ -397,6 +400,7 @@ export class Match {
 
   start() {
     if (this.disposed || this.ended || this.phase !== PHASE.LOBBY) return;
+    logMatchStart(this);
     this.guard(() => {
       if (!this.gd.visibleChess.length || this.pool.entries.size === 0) {
         this.log.error?.(`[match ${this.roomCode}] game data unusable (no chess pool) — ending the match`);
@@ -3081,6 +3085,7 @@ export class Match {
     const { t, ...summary } = result;
     void t;
     summary.errors = this.errorCount;
+    try { logMatchEnd(this, summary); } catch { /* logging never ends a match */ }
     try { this.onEndFn(summary); } catch (e) { this.reportError('onEnd', e); }
   }
 }

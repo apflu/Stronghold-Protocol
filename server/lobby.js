@@ -58,6 +58,7 @@
 //     and refuses it afterwards (WRONG_PHASE: the match's loadout is locked, the stored one applies to the next match).
 
 import { randomBytes, randomInt } from 'node:crypto';
+import { eventLog, logRoom, startRoomSnapshots } from './match/eventlog.js';
 import { ERR, MAX_SEATS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
 import { checkLoadout } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
@@ -187,6 +188,8 @@ export class Lobby {
     this.resyncTimers = new Map();
     /** per-network limit warnings: at most one log line per 10 s (the rest are counted) */
     this.limitLog = { at: -Infinity, suppressed: 0 };
+    /** event log (SP_LOG_DIR): a snapshot of every live room every 5 min */
+    this.roomSnapshots = startRoomSnapshots(() => this.rooms.values());
   }
 
   /** @param {string} code @returns {Room | null} */
@@ -214,6 +217,7 @@ export class Lobby {
    * @param {{ resumed: boolean, repeat: boolean }} info
    */
   onHello(session, { resumed, repeat }) {
+    if (!repeat && eventLog.enabled) eventLog.write({ type: 'hello', pid: session.playerId, player: session.name, addr: session.addr, resumed: !!resumed, room: session.roomCode ?? null });
     if (!resumed && !repeat) return;
     const room = this.roomOf(session);
     if (!room) {
@@ -295,6 +299,7 @@ export class Lobby {
    * @param {string} [reason]
    */
   shutdown(reason = 'shutdown') {
+    if (this.roomSnapshots) { clearInterval(this.roomSnapshots); this.roomSnapshots = null; }
     for (const room of [...this.rooms.values()]) this.disposeRoom(room, reason);
     for (const t of this.graceTimers.values()) clearTimeout(t);
     this.graceTimers.clear();
@@ -331,6 +336,7 @@ export class Lobby {
     session.notice = null;
     session.pendingResult = null;
     this.log.info(`[lobby] ${code} created (${mode}/${difficulty}) by ${session.name}`);
+    logRoom('room.create', room, { pid: session.playerId, player: session.name, addr: session.addr });
     this.broadcastState(room);
     return OK;
   }
@@ -352,6 +358,7 @@ export class Lobby {
     session.notice = null;
     session.pendingResult = null;
     if (!room.hostId) room.hostId = session.playerId;
+    logRoom('room.join', room, { pid: session.playerId, player: session.name, addr: session.addr });
     this.broadcastState(room);
     return OK;
   }
@@ -359,6 +366,7 @@ export class Lobby {
   leave(session) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
+    logRoom('room.leave', room, { pid: session.playerId, player: session.name });
     this.removeMember(room, session.playerId);
     return OK;
   }
@@ -512,6 +520,7 @@ export class Lobby {
       room.replay = null;
       room.matchCount++;
       this.log.info(`[lobby] ${room.code} match #${room.matchCount} starting (${room.mode}/${room.difficulty}, ${seats.length} seats, seed ${seed})`);
+      logRoom('room.start', room, { matchNo: room.matchCount, seed });
       this.broadcastState(room);
       match.start();
     } catch (e) {
@@ -535,6 +544,7 @@ export class Lobby {
     room.replay = this.buildReplay(room, ctx);
     setImmediate(() => this.disposeMatchCtx(ctx));
     this.log.info(`[lobby] ${room.code} match #${room.matchCount} ended`);
+    logRoom('room.end', room, { matchNo: room.matchCount, victory: summary?.victory ?? null, reason: summary?.reason ?? null, roundsPassed: summary?.roundsPassed ?? null });
     for (let i = 0; i < room.seats.length; i++) {
       const s = room.seats[i];
       if (!s || s.isBot) continue;
@@ -822,6 +832,7 @@ export class Lobby {
     }
     if (ctx) this.disposeMatchCtx(ctx);
     this.log.info(`[lobby] ${room.code} disposed (${reason})`);
+    logRoom('room.dispose', room, { reason });
   }
 
   genCode() {

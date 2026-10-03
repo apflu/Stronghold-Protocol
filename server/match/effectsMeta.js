@@ -33,6 +33,11 @@ import { pieceBonds as bondsOfPiece } from './bondsMeta.js';
 import { registerAllMeta } from '../sim/content/index.js';
 import { registerBuiltins } from './builtinMeta.js';
 
+/** Event-log description of a handler's source (eventlog.js: which 特质 / item / band changed funds or layers). */
+const logSourceOf = (source) => (source && typeof source === 'object'
+  ? { kind: source.kind ?? null, key: source.key ?? null, piece: source.piece?.id ?? null, garrison: source.garrisonId ?? null }
+  : null);
+
 export const HOOKS = Object.freeze([
   'onRoundStart', 'onIncome', 'onPrepStart', 'onPrepEnd', 'onGain', 'onSold', 'onRefresh', 'onPrice', 'onBuy',
   'onSpend', 'onMerge', 'onLevelUp', 'onBattleStart', 'onBattleResult', 'onChoicePick', 'onEquip', 'onArt',
@@ -426,7 +431,7 @@ export function makeCtx(m, ps, source, hook, ev = null) {
     incCounter: (k, n = 1) => { if (typeof k !== 'string' || !Number.isFinite(n)) return 0; ps.counters[k] = (Number.isFinite(ps.counters[k]) ? ps.counters[k] : 0) + n; return ps.counters[k]; },
 
     // ---- economy
-    addFunds: (n, reason = '') => ps.addFunds(finiteInt(n), { reason }),
+    addFunds: (n, reason = '') => ps.addFunds(finiteInt(n), { reason, logSource: logSourceOf(source) }),
     addPendingFunds: (n) => { const v = finiteInt(n); if (v > 0) { ps.pendingFunds += v; ps.dirty(); } return v > 0 ? v : 0; },
     spendFunds: (n) => { const v = finiteInt(n); if (!ps.spend(v)) return false; ps._afterSpend(v, 'effect'); return true; },
     grantFreeRefresh: (n = 1) => { const v = finiteInt(n); if (v > 0) { ps.shop.freeRefreshes += v; ps.dirty(); } return ps.shop.freeRefreshes; },
@@ -436,7 +441,7 @@ export function makeCtx(m, ps, source, hook, ev = null) {
     setPrice: (v) => { if (hook === 'onPrice' && ev && Number.isFinite(v)) ev.price = Math.max(0, v); return ev ? ev.price : null; },
 
     // ---- layers
-    addLayers: (bondId, n, opts = {}) => ps.addLayers(bondId, n, { requireActive: !!opts.requireActive, reason: opts.reason || source.key || '' }),
+    addLayers: (bondId, n, opts = {}) => ps.addLayers(bondId, n, { requireActive: !!opts.requireActive, reason: opts.reason || source.key || '', logSource: logSourceOf(source) }),
 
     // ---- pieces
     grantChess: (chessId, opts = {}) => {
