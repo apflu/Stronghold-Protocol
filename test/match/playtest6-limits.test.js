@@ -95,7 +95,7 @@ test('client-result check: a reported layer gain may not pass 999 from the bond\
   assert.equal(ok.ok, true, ok.reason);
   assert.deepEqual(ok.result.perPlayer.p_0.layerGains, { yanShip: 9, kjeragShip: 80 });
   assert.deepEqual(validateClientResult(spec, res({ yanShip: 10 }), { gd: m.gd }), { ok: false, reason: 'layer bound' }, '990 + 10 > 999');
-  assert.deepEqual(validateClientResult(spec, res({ kjeragShip: 81 }), { gd: m.gd }), { ok: false, reason: 'layer bound' }, 'the per-round bound 60 + 4·5 (+ 4 per scheduled enemy: none here) still holds');
+  assert.deepEqual(validateClientResult(spec, res({ kjeragShip: 81 }), { gd: m.gd }), { ok: false, reason: 'layer bound' }, 'the per-round bound 60 + 4·5 still holds');
   const capped = { ...spec, players: [{ ...spec.players[0], bonds: { yanShip: { count: 3, active: true, tier: 1, layers: 999 } } }] };
   assert.deepEqual(validateClientResult(capped, res({ yanShip: 1 }), { gd: m.gd }), { ok: false, reason: 'layer bound' }, 'a capped bond gains nothing');
   assert.equal(validateClientResult(capped, res({ yanShip: 0 }), { gd: m.gd }).ok, true);

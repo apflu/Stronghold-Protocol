@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   phaseMode, phaseBanner, isCombatPhase, isBossPhase, countdownState, phaseTotalSeconds, sortBonds, bondTier, nextThreshold,
-  bondMembers, pieceBondIds, bannedPerBond, priceTone, mergeProgress, shopBlockReason, deploySets, indexPieces, placementContext, canPlace,
+  bondMembers, bannedPerBond, priceTone, mergeProgress, shopBlockReason, deploySets, indexPieces, placementContext, canPlace,
   boardTargets, dropIntent, normalizeDraft, normalizeSp, groupEnemies, factionTypes, snapHud, bossFrac, attackInterval, fmtNum,
   rangeGridBox, shortcutFor, sanitizeSettings, DEFAULT_SETTINGS, normalizeResult, cycleField, fieldLabel, homeFieldId,
   activeBubbles, sortedPlayers, tileKey, prepCapsuleLabel, prepCamera, dropFailureReason,
@@ -141,23 +141,6 @@ describe('bonds', () => {
     assert.equal(rows[0].id, m1, 'on-board first');
     assert.equal(rows.length, b.visibleMembers.length);
   });
-  test('变形同构体 grants: pieceBondIds and the bond popup members follow the server rule (bondsMeta pieceBonds)', () => {
-    const carrier = Object.values(chess).find((c) => c.visible && !c.isGolden && !(c.bonds || []).includes('egirShip'));
-    const iso = 'chess_item_6_09_e_a';
-    const blade = 'chess_item_3_07_e_a'; // 阿戈尔重刃 → egirShip
-    assert.equal(items[iso].canGiveBond, true);
-    assert.equal(items[blade].giveBondId, 'egirShip');
-    assert.deepEqual(pieceBondIds(carrier, [{ uid: 1, id: iso }, { uid: 2, id: blade }], getItem), [...carrier.bonds, 'egirShip']);
-    assert.deepEqual(pieceBondIds(carrier, [iso, blade], getItem), [...carrier.bonds, 'egirShip'], 'plain ids too');
-    assert.deepEqual(pieceBondIds(carrier, [{ id: blade }], getItem), carrier.bonds, 'the blade alone grants nothing');
-    assert.deepEqual(pieceBondIds(carrier, [{ id: iso }], getItem), carrier.bonds, 'the isomorph alone grants nothing');
-    const b = bonds.egirShip;
-    const priv = privWith({ board: [{ ...piece(carrier.chessId), row: 9, col: 3, items: [{ uid: 1, id: iso }, { uid: 2, id: blade }] }] });
-    const rows = bondMembers(b, priv, [], getChess, getItem);
-    assert.equal(rows.length, b.visibleMembers.length + 1);
-    assert.deepEqual(rows[0], { id: carrier.chessId, tier: carrier.tier, name: carrier.name, onBoard: true, owned: true, banned: false, granted: true });
-    assert.equal(bondMembers(b, priv, [], getChess).length, b.visibleMembers.length, 'no item lookup: own members only');
-  });
   test('bannedPerBond counts banned visible members', () => {
     const b = bonds.deputShip;
     const per = bannedPerBond(Object.values(bonds), [b.visibleMembers[0], b.visibleMembers[1], 'nope']);
@@ -234,6 +217,9 @@ describe('placement mirror (canPlace)', () => {
     const board = [];
     const tiles = [[9, 3], [9, 4], [9, 5], [9, 7], [9, 8], [9, 9], [10, 5], [10, 7]];
     for (const [row, col] of tiles) board.push({ ...piece(MELEE), row, col });
+    // the 狼群's owner: 伺夜 facing UP on (9,4) — her range (rows 9–12 × cols 3–5) covers the tiles tried below
+    // ("只能部署在召唤者攻击范围内", player report #9 after 0.1.0)
+    board[1] = { ...piece('chess_char_3_19_a'), row: 9, col: 4, dir: 'UP' };
     const extra = piece(MELEE);
     const ctx = ctxFor(privWith({ board, hand: [extra] }));
     const full = canPlace(ctx, extra.uid, { area: 'board', row: 11, col: 5 });
@@ -242,7 +228,7 @@ describe('placement mirror (canPlace)', () => {
     const onBoard = board[0];
     assert.equal(canPlace(ctx, onBoard.uid, { area: 'board', row: 11, col: 5 }).ok, true, 'moving on the board never hits the cap');
     // tokens don't use deploy slots
-    const tok = { uid: ++uid, kind: 'token', id: 'token_10028_vigil_wolf', count: 1, ownerUid: board[0].uid };
+    const tok = { uid: ++uid, kind: 'token', id: 'token_10028_vigil_wolf', count: 1, ownerUid: board[1].uid };
     const ctx2 = ctxFor(privWith({ board, hand: [tok] }));
     assert.equal(canPlace(ctx2, tok.uid, { area: 'board', row: 11, col: 5 }).ok, true);
     assert.equal(canPlace(ctx2, tok.uid, { area: 'board', row: 10, col: 4 }).ok, false, 'MELEE token not on high ground');
@@ -251,7 +237,7 @@ describe('placement mirror (canPlace)', () => {
     const ctx3 = ctxFor(privWith({ board, hand: [orphan] }));
     assert.equal(canPlace(ctx3, orphan.uid, { area: 'board', row: 11, col: 5 }).code, 'BAD_TARGET', 'summoner must be deployed');
     // a hand chess swapping with a board token takes a deploy slot (cap applies)
-    const bTok = { uid: ++uid, kind: 'token', id: 'token_10028_vigil_wolf', count: 1, ownerUid: board[0].uid, row: 11, col: 5 };
+    const bTok = { uid: ++uid, kind: 'token', id: 'token_10028_vigil_wolf', count: 1, ownerUid: board[1].uid, row: 11, col: 5 };
     const ctx4 = ctxFor(privWith({ board: [...board, bTok], hand: [extra] }));
     assert.equal(canPlace(ctx4, extra.uid, { area: 'board', row: 11, col: 5 }).code, 'BOARD_FULL');
   });
