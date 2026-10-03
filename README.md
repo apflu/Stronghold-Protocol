@@ -111,7 +111,7 @@ npm start          # 启动服务器：http://localhost:3000
 | `SP_COMBAT` | `client` | `client`：各玩家浏览器模拟自己的战斗（服务器负载极低）；`server`：由服务器模拟并推流 |
 | `SP_VERIFY` | `off` | 服务器复算客户端上报的战斗结果：`off` / `sample`（约 1/8 抽查）/ `all`（全部复算，更耗 CPU） |
 | `SP_BOT_ASSIST` | 空 | 设为 `1` 时，同盟模拟绝境 / 终极（有真人的房间）里的 AI 队友会得到暗中的帮助：每回合额外资金、商店更容易刷出自己在凑的干员（避开队友在凑的）、后期更看重高阶干员；不改生命值或属性 |
-| `SP_ACCESS` | `open` | 准入：`open` 不限制；`invite` 只允许用邀请链接打开过的设备（一个链接一名玩家，最多 3 台设备，共用昵称）；`watch` 不拦人、只记录会被拦下的访问。邀请存放在 `SP_ACCESS_FILE`（默认 `SP_LOG_DIR/access.json`），用 `node tools/access.mjs` 管理（见 docs/DEPLOY.md） |
+| `SP_ACCESS` | `open` | 准入：`open` 不限制；`invite` 只允许用邀请链接打开过的设备（一个链接一名玩家，最多 3 台设备，共用昵称）；`watch` 不拦人、只记录会被拦下的访问。邀请存放在 `SP_ACCESS_FILE`（默认 `SP_LOG_DIR/access.json`），用 `node tools/access.mjs` 管理（见 docs/DEPLOY.md）；未受邀访客看到的提示可用 `SP_ACCESS_TITLE` / `SP_ACCESS_MESSAGE` 自定义 |
 | `SP_LOG_DIR` | 空 | 事件日志目录（每天一个 `events-日期.jsonl`）：房间与参与者、每个操作、资金 / 层数来源、每场战斗的完整参数与结果；用 `node tools/logs.mjs` 查看（见 docs/DEPLOY.md） |
 | `SP_BOSS_HP_MUL` | `1` | 敌方领袖（最终攻势 / 隐秘核心）血池倍率，`SP_BOSS_HP_MUL_SOLO` / `SP_BOSS_HP_MUL_COOP` 可按模式分别设置（0.1–100；1 = 官方数值） |
 | `SP_BONUS_FUNDS` | `0` | 独立模拟里真人玩家每回合额外获得的资金（练习用，最多 50）；`SP_BONUS_FUNDS_FOR` 可限定昵称（逗号分隔，空 = 所有人） |

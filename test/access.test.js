@@ -61,10 +61,13 @@ test('server (SP_ACCESS=invite): the gate, invite links, the WebSocket and one n
   const file = tmpFile();
   const store = new AccessStore(file);
   const { code } = store.createInvite('test');
-  const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, access: 'invite', accessFile: file });
+  const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, access: 'invite', accessFile: file, accessTitle: '私有实例', accessMessage: '请联系管理员获得邀请链接' });
   try {
     const port = srv.port;
     assert.equal((await get(port, '/')).status, 403, 'no cookie: the invite-only page');
+    const page = await new Promise((resolve) => http.get({ host: '127.0.0.1', port, path: '/' }, (res) => { let b = ''; res.setEncoding('utf8'); res.on('data', (d) => { b += d; }); res.on('end', () => resolve(b)); }));
+    assert.match(page, /私有实例/);
+    assert.match(page, /请联系管理员获得邀请链接/, 'the host\'s own words (SP_ACCESS_TITLE / SP_ACCESS_MESSAGE)');
     assert.equal((await get(port, '/js/main.js')).status, 403, 'static files too');
     assert.equal((await get(port, '/healthz')).status, 200, '/healthz stays open');
     assert.equal((await get(port, '/?invite=bad.code')).status, 403);

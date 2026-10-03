@@ -531,6 +531,9 @@ export async function startServer(opts = {}) {
     else log.warn('[access] SP_ACCESS needs SP_ACCESS_FILE (or SP_LOG_DIR) — access stays open');
   }
   const gate = !!access && accessMode === 'invite';
+  // the page an uninvited visitor sees (SP_ACCESS_TITLE / SP_ACCESS_MESSAGE: the host's own words)
+  const gateTitle = String(opts.accessTitle ?? process.env.SP_ACCESS_TITLE ?? '').trim() || '本站仅限受邀玩家 · Invite only';
+  const gateText = String(opts.accessMessage ?? process.env.SP_ACCESS_MESSAGE ?? '').trim() || '请使用管理员发给你的邀请链接打开本站。打开过一次之后，这台设备以后直接访问即可。';
   /** The invite + device of a request's cookie, or null. */
   const identify = (req) => (access ? access.verify(parseCookies(req.headers.cookie)[COOKIE_NAME]) : null);
   const watchedAt = new Map(); // watch mode: one 'access.deny' line per address per hour
@@ -611,7 +614,7 @@ export async function startServer(opts = {}) {
     if (identify(req)) return false;
     noteDenied(req, parts.rawPath);
     if (!gate) return false; // watch mode: logged, served
-    sendError(req, res, 403, '本站仅限受邀玩家 · Invite only', '请使用管理员发给你的邀请链接打开本站。打开过一次之后，这台设备以后直接访问即可。');
+    sendError(req, res, 403, gateTitle, gateText);
     return true;
   }
 
