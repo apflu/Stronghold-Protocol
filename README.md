@@ -115,6 +115,7 @@ npm start          # 启动服务器：http://localhost:3000
 | `SP_LOG_DIR` | 空 | 事件日志目录（每天一个 `events-日期.jsonl`）：房间与参与者、每个操作、资金 / 层数来源、每场战斗的完整参数与结果；用 `node tools/logs.mjs` 查看（见 docs/DEPLOY.md） |
 | `SP_BOSS_HP_MUL` | `1` | 敌方领袖（最终攻势 / 隐秘核心）血池倍率，`SP_BOSS_HP_MUL_SOLO` / `SP_BOSS_HP_MUL_COOP` 可按模式分别设置（0.1–100；1 = 官方数值） |
 | `SP_BONUS_FUNDS` | `0` | 独立模拟里真人玩家每回合额外获得的资金（练习用，最多 50）；`SP_BONUS_FUNDS_FOR` 可限定昵称（逗号分隔，空 = 所有人） |
+| `SP_BOUNTY_COINS` | 空 | 覆盖悬赏卡的奖励，格式 `卡片ID=资金,…`（如 `enemyeffect_b_1=3` 把碎骨·悬赏改为 3 资金）；卡面文字与实际发放同时生效 |
 | `SP_BOT_HELP_LAST` | 空 | 设为 `1` 时联防帮手优先派真人（击杀悬赏敌人的赏金归帮手），名额有剩才派 AI |
 | `SP_BOT_PREFER_BAND` | 空 | 策略 ID（如 `band_amiya` = 阿米娅）：AI 座位在策略轮选中只要它还没被选走就选它 |
 | `SP_BOT_PREFER_BOND` | 空 | 盟约 ID（如 `steadShip` = 坚守）：所有 AI 优先把这个盟约凑到最高档 |

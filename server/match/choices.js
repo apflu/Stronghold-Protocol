@@ -195,10 +195,39 @@ export function draftBounty(c, kind = null) {
 /** The draft card of a cards.bounty entry (the official rich text, a multi-round card's battles and text rewritten). */
 export function bountyCard(gd, c) {
   const eff = typeof gd.effect === 'function' ? gd.effect(c.effectId) : null;
+  const coin = bountyCoinOf(gd, c.effectId, c.coin);
   return {
-    kind: 'bounty', id: c.effectId, name: c.name, desc: bountyText(c.desc || '', c), descRaw: bountyText((eff && eff.descRaw) || null, c), tier: c.tier, coin: c.coin,
+    kind: 'bounty', id: c.effectId, name: c.name, desc: withBountyCoin(bountyText(c.desc || '', c), c.coin, coin),
+    descRaw: withBountyCoin(bountyText((eff && eff.descRaw) || null, c), c.coin, coin), tier: c.tier, coin,
     payout: c.payout, rounds: bountyBattles(c), enemyKey: c.enemyKey, count: c.count,
   };
+}
+
+/**
+ * SP_BOUNTY_COINS (Match.js → gd.bountyCoins: effect id → coins): the host's reward for a bounty card instead of the
+ * official one (players found 碎骨·悬赏's 1 coin far below the threat). `coin` when the card has no override.
+ */
+export function bountyCoinOf(gd, effectId, coin) {
+  const m = gd && gd.bountyCoins instanceof Map ? gd.bountyCoins : null;
+  return m && effectId != null && m.has(effectId) ? m.get(effectId) : coin;
+}
+
+/** A card text with its reward rewritten ("获得1资金" / "获得<@ba.vup>1</>资金" → the new amount). */
+export function withBountyCoin(text, from, to) {
+  if (typeof text !== 'string' || !text || from === to || !Number.isFinite(to)) return text;
+  return text
+    .replace(new RegExp(`获得(<@ba\\.[a-z]+>)?${from}(</>)?资金`, 'g'), (_, a = '', b = '') => `获得${a}${to}${b}资金`);
+}
+
+/** SP_BOUNTY_COINS → Map(effect id → coins ≥ 0); junk entries are skipped. */
+export function parseBountyCoins(v) {
+  const out = new Map();
+  for (const part of String(v ?? '').split(',')) {
+    const [id, n] = part.split('=').map((s) => s.trim());
+    const coins = Number(n);
+    if (id && n !== '' && Number.isInteger(coins) && coins >= 0 && coins <= 99) out.set(id, coins);
+  }
+  return out;
 }
 
 /** Up to `k` cards of `list` not in `taken`, in a shuffled order. */

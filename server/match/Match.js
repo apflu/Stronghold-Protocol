@@ -99,6 +99,8 @@
 //                      (unite.js helperOrder — the helpers collect the kill bounties of the leaks they beat)
 //   opts.botPreferBand band id (env SP_BOT_PREFER_BAND, e.g. band_amiya): an AI seat takes it in the strategy draft
 //                      whenever it is still free (bot.js botPickBand; AI 托管 seats keep the plain pick)
+//   opts.bountyCoins   'effectId=coins,…' (env SP_BOUNTY_COINS): the host's reward for bounty cards (choices.js
+//                      bountyCoinOf: the draft card and its text, and every bounty added — Match.addBounty)
 //   opts.bossHpMul     leader pool multiplier, both boss rounds (env SP_BOSS_HP_MUL; SP_BOSS_HP_MUL_SOLO / _COOP override
 //                      it per mode; 0.1–100, default 1 = the official pool) → m.gd.hostBossHpMul (GameData.bossPoolShare)
 //   opts.bonusFunds    extra coins per round start for the human of a solo match (env SP_BONUS_FUNDS, 0–50, default 0)
@@ -145,7 +147,7 @@ import { PlayerState } from './PlayerState.js';
 import { buildDeployMap, boardOrder, pieceDir } from './board.js';
 import { bondList } from './bondsMeta.js';
 import { EffectDispatcher, getDefaultRegistry } from './effectsMeta.js';
-import { generateDraft, applyCard, cardView, bountyBattles, isMultiRoundBounty } from './choices.js';
+import { generateDraft, applyCard, cardView, bountyBattles, isMultiRoundBounty, bountyCoinOf, withBountyCoin, parseBountyCoins } from './choices.js';
 import { setupMatchWaves, buildNormalWave, buildBossWave, bountySpawns, withBounties, previewOf, weightedPick } from './waves.js';
 import { planUnite, uniteBattleOpts, uniteSurvivors } from './unite.js';
 import { pairPlayers, bossPoolHp, SharedBossPool, hiddenEligible, BOSS_HIT_STEPS } from './finalAssault.js';
@@ -292,6 +294,8 @@ export class Match {
     /** SP_BOSS_HP_MUL*: the host's leader pool multiplier for this match (1 = official) */
     this.bossHpMul = mulOf(opts.bossHpMul) ?? mulOf(env(this.isSolo ? 'SP_BOSS_HP_MUL_SOLO' : 'SP_BOSS_HP_MUL_COOP')) ?? mulOf(env('SP_BOSS_HP_MUL')) ?? 1;
     this.gd.hostBossHpMul = this.bossHpMul;
+    /** SP_BOUNTY_COINS: effect id → coins (choices.js bountyCoinOf) */
+    this.gd.bountyCoins = parseBountyCoins(opts.bountyCoins ?? env('SP_BOUNTY_COINS'));
     /** SP_BOT_HELP_LAST: humans before AI seats among the 联防 helpers */
     this.botHelpLast = opts.botHelpLast != null ? !!opts.botHelpLast : parseFlag(env('SP_BOT_HELP_LAST'));
     const preferBand = String(opts.botPreferBand ?? env('SP_BOT_PREFER_BAND') ?? '').trim();
@@ -1549,9 +1553,12 @@ export class Match {
     if (!ps || !card || !this.gd.enemy(card.enemyKey)) return null;
     // a multi-round card lasts MULTI_ROUND_BOUNTY_BATTLES battles (choices.js; the user's call after playtest #6)
     const rounds = bountyBattles(card);
+    // SP_BOUNTY_COINS: the host's reward wins whichever way the bounty came (悬赏决策, 神秘顾客, 教鞭 …)
+    const officialCoin = Math.max(0, Math.trunc(Number(card.coin) || 0));
+    const coin = bountyCoinOf(this.gd, card.effectId ?? card.id ?? null, officialCoin);
     const b = {
       id: `bounty:${this.nextUid()}`,
-      card: { effectId: card.effectId ?? card.id ?? null, name: card.name ?? '悬赏', desc: card.desc ?? '', tier: card.tier ?? 1, coin: Math.max(0, Math.trunc(Number(card.coin) || 0)), payout: card.payout === 'perfect' ? 'perfect' : 'kill', rounds, multiRound: isMultiRoundBounty(card), enemyKey: card.enemyKey, count: Math.max(1, Math.min(20, Number.isInteger(card.count) ? card.count : 1)) },
+      card: { effectId: card.effectId ?? card.id ?? null, name: card.name ?? '悬赏', desc: withBountyCoin(card.desc ?? '', officialCoin, coin), tier: card.tier ?? 1, coin, payout: card.payout === 'perfect' ? 'perfect' : 'kill', rounds, multiRound: isMultiRoundBounty(card), enemyKey: card.enemyKey, count: Math.max(1, Math.min(20, Number.isInteger(card.count) ? card.count : 1)) },
       roundsLeft: rounds,
     };
     ps.bounties.push(b);

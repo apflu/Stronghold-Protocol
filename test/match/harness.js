@@ -79,7 +79,8 @@ export function makeMatch(o = {}) {
     bonusFunds: o.bonusFunds ?? 0,
     bossHpMul: 'bossHpMul' in o ? o.bossHpMul : 1,
     botHelpLast: o.botHelpLast ?? false,
-    botPreferBand: o.botPreferBand ?? '', // pass bossHpMul: undefined to read SP_BOSS_HP_MUL*
+    botPreferBand: o.botPreferBand ?? '',
+    bountyCoins: o.bountyCoins ?? '', // pass bossHpMul: undefined to read SP_BOSS_HP_MUL*
     bonusFundsFor: o.bonusFundsFor ?? '',
     botSliceMs: o.botSliceMs,
     clientCombat: o.clientCombat ?? false,

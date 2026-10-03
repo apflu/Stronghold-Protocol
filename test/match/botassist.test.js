@@ -212,3 +212,24 @@ test('SP_BOT_PREFER_BAND: an AI seat takes the strategy while it is free; 阿米
   assert.equal(makeMatch({ fake: true, botPreferBand: 'no_such_band' }).m.botPreferBand, null);
   m.dispose();
 });
+
+test('SP_BOUNTY_COINS: the host reward for a bounty card — on the draft card, its text and every bounty added', async () => {
+  const { bountyCard } = await import('../../server/match/choices.js');
+  const raw = DATA.choices.cards.bounty.find((c) => c.effectId === 'enemyeffect_b_1'); // 碎骨·悬赏, officially 1
+  assert.equal(raw.coin, 1);
+  const h = makeMatch({ mode: 'solo', difficulty: 'HARD', fake: true, bountyCoins: 'enemyeffect_b_1=3' });
+  const m = h.m;
+  const card = bountyCard(m.gd, raw);
+  assert.equal(card.coin, 3);
+  assert.match(card.desc, /获得3资金/);
+  assert.match(card.descRaw, /获得<@ba\.vup>3<\/>资金/);
+  const ps = h.ps('p_0');
+  m.addBounty(ps, card);
+  m.addBounty(ps, { ...raw, effectId: 'enemyeffect_b_1', desc: raw.desc }); // the official text (神秘顾客 / 教鞭 path)
+  assert.deepEqual(ps.bounties.map((b) => b.card.coin), [3, 3]);
+  assert.ok(ps.bounties.every((b) => /获得3资金/.test(b.card.desc)));
+  const off = makeMatch({ mode: 'solo', difficulty: 'HARD', fake: true });
+  assert.equal(bountyCard(off.m.gd, raw).coin, 1, 'default: the official reward');
+  off.m.dispose();
+  m.dispose();
+});
