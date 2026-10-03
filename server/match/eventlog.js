@@ -265,7 +265,7 @@ export function logMatchStart(m) {
   if (!m.eventLog) return;
   m.eventLog('match.start', {
     mode: m.mode, difficulty: m.difficulty, modeId: m.modeId, stageId: m.stageId, bossId: m.bossId, hiddenBossId: m.hiddenBossId ?? null,
-    factions: m.factions ?? null, botAssist: !!m.botAssist, botPreferBond: m.botPreferBond, bonusFunds: m.bonusFunds || 0,
+    factions: m.factions ?? null, botAssist: !!m.botAssist, botPreferBond: m.botPreferBond, bonusFunds: m.bonusFunds || 0, bossHpMul: m.bossHpMul ?? 1,
     seats: [...m.players.values()].map((ps) => ({ seat: ps.seat, pid: ps.playerId, player: ps.name, bot: !!ps.isBot, loadout: ps.loadout ?? null })),
   });
 }

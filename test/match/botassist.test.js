@@ -151,3 +151,25 @@ test('SP_BONUS_FUNDS: the solo human takes the extra coins at every round start 
   assert.equal(h.m.bonusFunds, 0, 'solo only');
   h.m.dispose();
 });
+
+test('SP_BOSS_HP_MUL: the host multiplies every leader pool (per mode overrides); default the official pool', async () => {
+  const { bossPoolHp } = await import('../../server/match/finalAssault.js');
+  const pool = (o) => { const h = makeMatch({ fake: true, ...o }); const v = bossPoolHp(h.m.gd, 'boss_5', 4); h.m.dispose(); return v; };
+  const soloBase = pool({ mode: 'solo', difficulty: 'ABYSS' });
+  const coopBase = pool({ mode: 'coop', difficulty: 'ABYSS', humans: 1, bots: 3 });
+  assert.equal(soloBase, 750000, '卢西恩 终极 solo = bloodPoint × 0.25');
+  assert.equal(coopBase, 3000000);
+  assert.equal(pool({ mode: 'solo', difficulty: 'ABYSS', bossHpMul: 4 }), 4 * soloBase);
+  assert.equal(pool({ mode: 'coop', difficulty: 'ABYSS', humans: 1, bots: 3, bossHpMul: 10 }), 10 * coopBase);
+  const env = process.env;
+  const saved = { a: env.SP_BOSS_HP_MUL, s: env.SP_BOSS_HP_MUL_SOLO, c: env.SP_BOSS_HP_MUL_COOP };
+  try {
+    env.SP_BOSS_HP_MUL = '2'; env.SP_BOSS_HP_MUL_SOLO = '4'; delete env.SP_BOSS_HP_MUL_COOP;
+    assert.equal(pool({ mode: 'solo', difficulty: 'ABYSS', bossHpMul: undefined }), 4 * soloBase, 'the solo override');
+    assert.equal(pool({ mode: 'coop', difficulty: 'ABYSS', humans: 1, bots: 3, bossHpMul: undefined }), 2 * coopBase, 'the shared value');
+    env.SP_BOSS_HP_MUL = 'x';
+    assert.equal(pool({ mode: 'coop', difficulty: 'ABYSS', humans: 1, bots: 3, bossHpMul: undefined }), coopBase, 'junk ⇒ official');
+  } finally {
+    for (const [k, v] of [['SP_BOSS_HP_MUL', saved.a], ['SP_BOSS_HP_MUL_SOLO', saved.s], ['SP_BOSS_HP_MUL_COOP', saved.c]]) { if (v == null) delete env[k]; else env[k] = v; }
+  }
+});

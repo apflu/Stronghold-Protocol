@@ -128,19 +128,22 @@ export class GameData {
 
   /**
    * Multiplier of bloodPoint for the leader pool (see bossPoolHp): solo = bossHpScale.solo (0.25); co-op = coop (1) ×
-   * min(alive, aliveFull) / aliveFull when bossHpScale.aliveScaling (mode entry first, then the global one).
+   * min(alive, aliveFull) / aliveFull when bossHpScale.aliveScaling (mode entry first, then the global one); both × the
+   * host's `hostBossHpMul` (SP_BOSS_HP_MUL / _SOLO / _COOP, Match.js — players found the official pools far too thin).
    * @param {number} [aliveCount]
    */
   bossPoolShare(aliveCount) {
     const ms = this.mode.bossHpScale && typeof this.mode.bossHpScale === 'object' ? this.mode.bossHpScale : {};
     const cs = this.config.bossHpScale && typeof this.config.bossHpScale === 'object' ? this.config.bossHpScale : {};
     const pick = (k, d) => (Number.isFinite(ms[k]) && ms[k] > 0 ? ms[k] : Number.isFinite(cs[k]) && cs[k] > 0 ? cs[k] : d);
-    if (this.isSolo) return pick('solo', 0.25);
+    // the host's multiplier (SP_BOSS_HP_MUL*, set per match by Match.js; 1 = the official pool)
+    const host = Number.isFinite(this.hostBossHpMul) && this.hostBossHpMul > 0 ? this.hostBossHpMul : 1;
+    if (this.isSolo) return pick('solo', 0.25) * host;
     const scaling = typeof ms.aliveScaling === 'boolean' ? ms.aliveScaling : cs.aliveScaling === true;
     const full = Math.max(1, Math.floor(pick('aliveFull', 4)));
     const n = Number(aliveCount);
     const alive = scaling && Number.isFinite(n) && n >= 1 ? Math.min(full, Math.floor(n)) : full;
-    return pick('coop', 1) * (alive / full);
+    return pick('coop', 1) * (alive / full) * host;
   }
 
   /** config.titles with the tuning overrides (stat / rule per title id) merged in. */

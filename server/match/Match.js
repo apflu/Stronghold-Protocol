@@ -95,6 +95,8 @@
 //                      parameters, or null)
 //   opts.botPreferBond bond id (env SP_BOT_PREFER_BOND, default none): every bot builds this bond to its top threshold
 //                      first (bot.js; an unknown id is ignored — m.botPreferBond = the id, or null)
+//   opts.bossHpMul     leader pool multiplier, both boss rounds (env SP_BOSS_HP_MUL; SP_BOSS_HP_MUL_SOLO / _COOP override
+//                      it per mode; 0.1–100, default 1 = the official pool) → m.gd.hostBossHpMul (GameData.bossPoolShare)
 //   opts.bonusFunds    extra coins per round start for the human of a solo match (env SP_BONUS_FUNDS, 0–50, default 0)
 //   opts.bonusFundsFor nicknames that get them (env SP_BONUS_FUNDS_FOR, comma-separated; empty = every player)
 //                      — a host's practice aid; m.bonusFunds = the coins for this match's human, or 0
@@ -276,6 +278,10 @@ export class Match {
     const prefer = String(opts.botPreferBond ?? env('SP_BOT_PREFER_BOND') ?? '').trim();
     /** bond every bot builds to its top threshold first (bot.js), or null */
     this.botPreferBond = prefer && this.gd.bond(prefer) ? prefer : null;
+    const mulOf = (v) => { const n = Number(v); return v != null && v !== '' && Number.isFinite(n) && n > 0 ? Math.min(100, Math.max(0.1, n)) : null; };
+    /** SP_BOSS_HP_MUL*: the host's leader pool multiplier for this match (1 = official) */
+    this.bossHpMul = mulOf(opts.bossHpMul) ?? mulOf(env(this.isSolo ? 'SP_BOSS_HP_MUL_SOLO' : 'SP_BOSS_HP_MUL_COOP')) ?? mulOf(env('SP_BOSS_HP_MUL')) ?? 1;
+    this.gd.hostBossHpMul = this.bossHpMul;
     const bonus = Math.trunc(Number(opts.bonusFunds ?? env('SP_BONUS_FUNDS') ?? 0));
     const bonusFor = String(opts.bonusFundsFor ?? env('SP_BONUS_FUNDS_FOR') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
     const human = opts.seats.find((s) => s && !s.isBot);
