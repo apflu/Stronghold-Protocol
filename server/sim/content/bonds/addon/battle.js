@@ -41,6 +41,7 @@
 
 import { absoluteRangeKeys, canTargetEnemy } from '../../../targeting.js';
 import { localOrder, localBefore } from '../../../dir.js';
+import { COLS } from '../../../constants.js';
 import {
   num, bondRecord, buffParams, bondTier, bondLayers, isMember, isElite, isGroundOp, onField, playerOps, passiveBuff,
   fxOn, N4, N8, bodyInKeys, directMods,
@@ -233,6 +234,11 @@ function raidTile(battle, u, e) {
       const r = er + dr, c = ec + dc;
       if (!battle.grid.inRect(r, c) || battle.isReservedTile(r, c)) continue;
       if (!battle.grid.canStand(r, c, { ranged })) continue;
+      // devices on the ground count like the deploy rules (server/match/board.js): no landing on a crate, and a 射击台
+      // (a hard block that lifts whoever stands on it) takes ranged operators only — a melee member landing there was
+      // elevated, stopped blocking and no longer counted as a ground operator (不屈; user report 2026-10-03)
+      if (battle.grid.isCrate(r, c)) continue;
+      if (battle.grid.isBlocked(r, c) && !(ranged && battle._elevated?.has(r * COLS + c))) continue;
       const covers = bodyInKeys(e, absoluteRangeKeys(grid, r, c, u.dir, ext)) ? 0 : 1;
       const d = Math.max(Math.abs(dr), Math.abs(dc)) + 0.01 * (Math.abs(dr) + Math.abs(dc));
       // last tie-break: the offset in the unit's facing-RIGHT frame (sim/dir.js localOrder; for a RIGHT-facing unit the

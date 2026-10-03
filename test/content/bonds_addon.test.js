@@ -307,6 +307,32 @@ test('突袭: idle member relocates next to a ground enemy (SP kept) with ATK/HP
   checkInvariants(h2.b);
 });
 
+test('突袭: a melee member never lands on a 射击台 (it would be elevated: no blocking, no longer a ground operator for 不屈)', () => {
+  const bb = bondBb('raidShip');
+  const defs = { chess: { r_m: op('r_m', ['raidShip']) }, enemies: DUMMY };
+  const platforms = new Set();
+  const h = makeBattle({
+    defs, bonds: { raidShip: bond(1, 10) }, enemies: [{ key: 'enemy_addon_dummy', pos: [9, 8] }],
+    units: [{ chessId: 'r_m', row: 12, col: 3 }],
+    setup(b) {
+      // the enemy's tile and every tile next to it (the nearest landing tiles) carry a platform, as the engine places 射击台
+      for (let r = 8; r <= 10; r++) for (let c = 7; c <= 9; c++) {
+        if (!b.grid.canStand(r, c)) continue;
+        b.grid.setObstacle(r, c, true);
+        (b._elevated ??= new Set()).add(r * 21 + c);
+        platforms.add(`${r},${c}`);
+      }
+    },
+  });
+  assert.ok(platforms.size > 0, 'platforms around the enemy');
+  const u = h.unit('r_m');
+  h.run(bb.no_attack_duration + 0.5);
+  assert.notDeepEqual([u.tileR, u.tileC], [12, 3], 'relocated');
+  assert.ok(!platforms.has(`${u.tileR},${u.tileC}`), `landed on ${u.tileR},${u.tileC}, not on a platform`);
+  assert.equal(u.ground, true, 'still a ground operator (不屈, blocking)');
+  checkInvariants(h.b);
+});
+
 test('突袭: the jump is a redeployment — deploy fires (部署时 effects), full HP, SP kept; later redeploys use the board tile', () => {
   const bb = bondBb('raidShip');
   const defs = { chess: { r_m: chessRec({ id: 'r_m', bonds: ['raidShip'], skill: { spCost: 40, initSp: 0, duration: 10 } }) }, enemies: DUMMY };
