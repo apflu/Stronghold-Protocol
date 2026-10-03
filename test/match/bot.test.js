@@ -2,9 +2,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
-import { fieldModel, planLayout, rehearse, rangeTiles, REHEARSAL_VARIANTS, LAYOUT_PARAMS, botPickCard, botPickBand } from '../../server/match/bot.js';
+import { fieldModel, planLayout, rehearse, rangeTiles, REHEARSAL_VARIANTS, LAYOUT_PARAMS, botPickCard, botPickBand, equipItems } from '../../server/match/bot.js';
 import { FIELD, canPlace, positionClass, parseKey } from '../../server/match/board.js';
-import { makeMatch, checkInvariants, give, DATA } from './harness.js';
+import { makeMatch, checkInvariants, give, giveItem, DATA } from './harness.js';
 
 const soloBot = (o = {}) => makeMatch({ mode: 'solo', difficulty: 'NORMAL', seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }], ...o });
 
@@ -328,4 +328,29 @@ test('band pick: alone, the bot avoids a band that withholds the first rounds\' 
   }
   assert.ok(counts.solo <= 1, `solo picks 老鲤 ${counts.solo}/60`);
   assert.ok(counts.coop >= 1, `co-op may pick it (${counts.coop}/60)`);
+});
+
+test('突变细胞 (back in the hand every round): the bot gambles its weakest normal operator, never an elite', () => {
+  const h = soloBot({ seed: 4 }).start();
+  const m = h.m;
+  h.run(() => m.phase === PHASE.PREP && m.round === 2);
+  const ps = m.players.get('ai_0');
+  for (const p of ps.allChess()) ps.sell(p.uid);
+  const elite = Object.values(DATA.chess).find((c) => c.visible && c.isGolden && c.tier === 4);
+  const weak = Object.values(DATA.chess).find((c) => c.visible && !c.isGolden && c.tier === 1);
+  const strong = Object.values(DATA.chess).find((c) => c.visible && !c.isGolden && c.tier === 5);
+  const pieces = [elite, weak, strong].map((c) => give(m, ps, c.chessId, 'hand'));
+  let i = 0;
+  for (const p of pieces) {
+    for (const tile of [[9, 3 + i], [10, 3 + i], [11, 3 + i], [12, 3 + i]]) if (ps.move(p.uid, { area: 'board', row: tile[0], col: tile[1] }).ok) break;
+    i++;
+  }
+  assert.equal([...ps.board.values()].filter((p) => p.kind === 'chess').length, 3, 'all three deployed');
+  const cell = giveItem(m, ps, 'chess_item_5_08_e_a');
+  equipItems(m, ps);
+  const holder = [...ps.board.values()].find((p) => (p.items || []).some((it) => it.uid === cell.uid));
+  assert.ok(holder, 'the cell is equipped');
+  assert.equal(holder.id, weak.chessId, 'on the weakest normal operator');
+  checkInvariants(m);
+  m.dispose();
 });

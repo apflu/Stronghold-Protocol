@@ -1184,7 +1184,7 @@ function* placeTokensSteps(m, ps) {
   }
 }
 
-function equipItems(m, ps) {
+export function equipItems(m, ps) {
   const gd = m.gd;
   const ctx = context(m, ps);
   const carriers = () => [...ps.board.values()].filter((p) => p.kind === 'chess').sort((a, b) => pieceValue(m, ps, b, ctx) - pieceValue(m, ps, a, ctx));
@@ -1199,6 +1199,14 @@ function equipItems(m, ps) {
       const [key] = board.length ? board[0] : ['10,4'];
       const [r, c] = parseKey(key);
       tryDo(() => ps.useArt(item.uid, r, c));
+      continue;
+    }
+    if (rec && rec.kind === 'post_battle_transform') {
+      // 突变细胞 (back in the hand after every battle): the weakest normal operator below tier 6 gambles on tier + 1 —
+      // never an elite (it would come back NORMAL) nor the best carrier
+      const cand = carriers().filter((p) => { const c = chessRec(m, p.id); return c && !c.isGolden && c.tier < 6 && (p.items || []).length < gd.equipPerChess; });
+      const target = cand[cand.length - 1];
+      if (target) tryDo(() => ps.equip(item.uid, target.uid));
       continue;
     }
     const consume = rec && typeof rec.kind === 'string' && rec.kind.startsWith('consume_on_equip');

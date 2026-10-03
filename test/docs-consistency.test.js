@@ -568,7 +568,7 @@ test('playtest6b follow-up (DESIGN §20.10–§20.13): leader HP, 直接乘算, 
   assert.match(s63, /`BOND_LAYER_CAP` = 999 layers \(the client's `MAX_GARRISON_STACK`/);
   assert.match(sec(8), /`'hitCap' \{id, n\}` = a cancelled 限伤 hit, drawn as nothing/);
   assert.match(sec(9), /fx\.promote instead of fx\.deploy/);
-  assert.match(sec(14), /`layerGains ≤ min\(60 \+ 4·round, 999 − the bond's starting layers\)`/);
+  assert.match(sec(14), /`layerGains ≤ min\(60 \+ 4·round \+ 4·scheduled enemies, 999 − the bond's starting layers\)`/);
   assert.match(sec(2), /pick\.js, promote\.js/);
   // leader parts and drones: one share, 1:1 (PRTS 等量); drones read the pool
   assert.equal(PART_TRANSFER, 1);
