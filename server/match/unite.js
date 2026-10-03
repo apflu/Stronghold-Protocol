@@ -94,11 +94,13 @@ export function helperStats(m, ps, results) {
 export function helperOrder(m, perfects, results) {
   const st = new Map(perfects.map((ps) => [ps.playerId, helperStats(m, ps, results)]));
   const S = (ps) => st.get(ps.playerId);
-  // SP_BOT_HELP_LAST (Match.botHelpLast): humans first — a helper collects the kill bounties of the leaks it beats
+  // SP_BOT_HELP_LAST (Match.botHelpLast): humans first, both in the pick and in the order — a helper collects the kill
+  // bounties of the leaks it beats, and the first helper stands on the right-hand field that meets the enemies first
+  // (uniteBattleOpts colOffset): the AI backs the humans up from behind
   const human = (a, b) => (m.botHelpLast ? Number(!!a.isBot) - Number(!!b.isBot) : 0);
   const select = perfects.slice().sort((a, b) => human(a, b) || S(b).units - S(a).units || (S(b).active - S(a).active) || S(b).standing - S(a).standing || a.seat - b.seat)
     .slice(0, m.gd.unite.maxHelpers);
-  return select.sort((a, b) => S(b).units - S(a).units || (S(b).active - S(a).active) || S(b).layers - S(a).layers || S(b).standing - S(a).standing || a.seat - b.seat);
+  return select.sort((a, b) => human(a, b) || S(b).units - S(a).units || (S(b).active - S(a).active) || S(b).layers - S(a).layers || S(b).standing - S(a).standing || a.seat - b.seat);
 }
 
 /** Battle options for the unite field (without data/logger, added by the match). */

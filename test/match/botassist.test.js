@@ -192,7 +192,7 @@ test('SP_BOT_HELP_LAST: humans before AI seats among the 联防 helpers (AI only
   assert.deepEqual(order({ botHelpLast: true }).sort(), ['p_0', 'p_1'], 'two humans fill both slots');
   const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seats, fake: true, botHelpLast: true });
   const ai = h.m.players.get('ai_0');
-  assert.deepEqual(helperOrder(h.m, [ai, h.m.players.get('p_0')], new Map()).map((p) => p.playerId).sort(), ['ai_0', 'p_0'], 'the AI still helps when a slot is left');
+  assert.deepEqual(helperOrder(h.m, [ai, h.m.players.get('p_0')], new Map()).map((p) => p.playerId), ['p_0', 'ai_0'], 'the AI still helps when a slot is left — behind the human (the first helper meets the enemies first)');
   h.m.dispose();
 });
 
