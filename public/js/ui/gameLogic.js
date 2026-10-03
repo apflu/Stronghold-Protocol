@@ -377,7 +377,29 @@ export function nextThreshold(count, thresholds) {
  * @param {Set<string>|string[]} [banned] banned base chess ids
  * @param {(id:string)=>any} [getChess]
  */
-export function bondMembers(bond, priv, banned = [], getChess = () => null) {
+/**
+ * Bonds of a chess piece: its own `bonds` + those granted by 变形同构体 (an item with `canGiveBond`) worn together with an
+ * item that has a `giveBondId` — the server's rule (server/match/bondsMeta.js pieceBonds, sim support unitBonds).
+ * @param {any} chess chess record
+ * @param {Array<string|{id:string}>} items the piece's equipment (ids or { id })
+ * @param {(id:string)=>any} getItem item record lookup
+ * @returns {string[]}
+ */
+export function pieceBondIds(chess, items, getItem = () => null) {
+  const out = Array.isArray(chess?.bonds) ? chess.bonds.filter((b) => typeof b === 'string') : [];
+  const recs = (Array.isArray(items) ? items : []).map((it) => getItem(typeof it === 'string' ? it : it?.id)).filter(Boolean);
+  if (recs.length >= 2 && recs.some((r) => r.canGiveBond)) {
+    for (const r of recs) if (!r.canGiveBond && typeof r.giveBondId === 'string' && !out.includes(r.giveBondId)) out.push(r.giveBondId);
+  }
+  return out;
+}
+
+/**
+ * Members of a bond for the bond popup: the bond's operators with their owned / on-board state, plus board pieces
+ * that hold the bond only through 变形同构体 (`granted: true`, on the board).
+ * `getItem` (item record lookup) enables the granted members; without it only the bond's own operators are listed.
+ */
+export function bondMembers(bond, priv, banned = [], getChess = () => null, getItem = null) {
   const bannedSet = banned instanceof Set ? banned : new Set(Array.isArray(banned) ? banned : []);
   const members = Array.isArray(bond?.visibleMembers) && bond.visibleMembers.length ? bond.visibleMembers : (Array.isArray(bond?.members) ? bond.members : []);
   const baseOf = (id) => getChess(id)?.baseId || (typeof id === 'string' ? id.replace(/_b$/, '_a') : id);
@@ -387,10 +409,22 @@ export function bondMembers(bond, priv, banned = [], getChess = () => null) {
   for (const p of [...(Array.isArray(priv?.hand) ? priv.hand : []), ...(Array.isArray(priv?.temp) ? priv.temp : [])]) {
     if (p?.kind === 'chess') owned.add(baseOf(p.id));
   }
-  return members.map((id) => {
+  const list = members.map((id) => {
     const c = getChess(id);
     return { id, tier: c?.tier ?? 0, name: c?.name ?? id, onBoard: onBoard.has(id), owned: owned.has(id), banned: bannedSet.has(id) };
-  }).sort((a, b) => (b.onBoard - a.onBoard) || (b.owned - a.owned) || (a.tier - b.tier) || (a.id < b.id ? -1 : 1));
+  });
+  if (getItem && bond?.bondId) {
+    const listed = new Set(members);
+    for (const p of Array.isArray(priv?.board) ? priv.board : []) {
+      if (p?.kind !== 'chess') continue;
+      const c = getChess(p.id);
+      const base = baseOf(p.id);
+      if (listed.has(base) || !pieceBondIds(c, p.items, getItem).includes(bond.bondId)) continue;
+      listed.add(base);
+      list.push({ id: base, tier: c?.tier ?? 0, name: c?.name ?? base, onBoard: true, owned: true, banned: false, granted: true });
+    }
+  }
+  return list.sort((a, b) => (b.onBoard - a.onBoard) || (b.owned - a.owned) || (a.tier - b.tier) || (a.id < b.id ? -1 : 1));
 }
 
 /**

@@ -71,7 +71,7 @@ export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember,
   const th = Array.isArray(entry?.thresholds) && entry.thresholds.length ? entry.thresholds : b.thresholds || [];
   const tier = entry?.tier ?? bondTier(count, th, b.maxCount);
   const active = entry ? !!entry.active : tier > 0;
-  const members = bondMembers(b, priv, banned, (id) => data.lookup('chess', id));
+  const members = bondMembers(b, priv, banned, (id) => data.lookup('chess', id), (id) => data.lookup('items', id));
   const countsHand = entry?.countsHand ?? b.countsHand;
   const next = nextThreshold(count, th);
   const hasNow = !!(b.effectDescRaw || b.effectDesc);
@@ -107,7 +107,7 @@ export function BondPopup({ bondId, entry, priv, banned = [], onClose, onMember,
       <h4>成员 <small>${members.filter((x) => x.onBoard).length}/${members.length}</small></h4>
       <div class="bpop__members">
         ${members.map((mb) => html`<button key=${mb.id} type="button" class=${cx('bpop__member', mb.onBoard && 'is-on', mb.owned && !mb.onBoard && 'is-owned', mb.banned && 'is-banned')}
-            onClick=${() => onMember?.(mb.id)} title=${`${mb.name}${mb.banned ? '（本局禁用）' : mb.onBoard ? '（在场）' : mb.owned ? '（整备区）' : ''}`}>
+            onClick=${() => onMember?.(mb.id)} title=${`${mb.name}${mb.banned ? '（本局禁用）' : mb.granted ? '（在场 · 装备赋予）' : mb.onBoard ? '（在场）' : mb.owned ? '（整备区）' : ''}`}>
           <${UnitThumb} kind="chess" id=${mb.id} size="sm" dim=${!mb.owned || mb.banned} />
           <span class="bpop__mname">${mb.name}</span>
           ${mb.banned ? html`<span class="bpop__ban"><${Icon} name="close" /></span>` : null}
