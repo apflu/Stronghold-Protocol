@@ -1,4 +1,4 @@
-// server/access.js — invite-only access (SP_ACCESS = open | watch | invite; SP_ACCESS_FILE = the store).
+// server/access.js — invite-only access (SP_ACCESS = open | watch | host | invite; SP_ACCESS_FILE = the store).
 //
 // One invite = one player: its link (`/?invite=<code>`) can be opened on up to MAX_DEVICES devices; each device gets an
 // HttpOnly cookie (COOKIE_NAME) and never logs in again. Every device of an invite plays under the same nickname: the
@@ -62,10 +62,13 @@ export function parseCookies(header) {
   return out;
 }
 
-/** SP_ACCESS → 'open' | 'watch' | 'invite'. */
+/**
+ * SP_ACCESS → 'open' | 'watch' | 'host' | 'invite'. host: the site is open, only invited devices create rooms (solo runs
+ * included) — everyone else joins an invited player's room by its code (server/lobby.js create).
+ */
 export function parseAccessMode(v) {
   const s = String(v ?? '').trim().toLowerCase();
-  return s === 'invite' || s === 'watch' ? s : 'open';
+  return s === 'invite' || s === 'watch' || s === 'host' ? s : 'open';
 }
 
 export class AccessStore {

@@ -218,6 +218,8 @@ SP_LOG_DIR=~/stronghold-logs node tools/access.mjs kick <设备ID>    # 移除�
 SP_LOG_DIR=~/stronghold-logs node tools/access.mjs revoke <邀请ID>  # 停用整条邀请
 ```
 
+`SP_ACCESS=host` 是折中：网站对所有人开放，但只有受邀设备能创建房间（含独立模拟，校验在服务器的大厅里，改客户端绕不过去），其他人凭同盟密钥加入受邀玩家的房间；访客每个网络每分钟最多输错 10 次密钥。
+
 运行中的服务器会在几秒内读到改动。先用 `SP_ACCESS=watch` 观察一段时间（事件日志里的 `access.deny` 行）再切到 `invite` 也可以。
 
 docker compose 示例：

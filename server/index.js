@@ -538,13 +538,17 @@ export async function startServer(opts = {}) {
   const identify = (req) => (access ? access.verify(parseCookies(req.headers.cookie)[COOKIE_NAME]) : null);
   const watchedAt = new Map(); // watch mode: one 'access.deny' line per address per hour
   const noteDenied = (req, what) => {
-    if (!eventLog.enabled) return;
+    if (!eventLog.enabled || accessMode === 'host') return; // host mode: guests are welcome (they only cannot create)
     const addr = clientAddress(req, netOptions.trustProxy).ip;
     const now = Date.now();
     if (now - (watchedAt.get(addr) || 0) < 3600_000) return;
     watchedAt.set(addr, now);
     eventLog.write({ type: 'access.deny', mode: accessMode, what, addr, ua: String(req.headers['user-agent'] || '').slice(0, 160) });
   };
+  if (access && accessMode === 'host') {
+    netOptions.memberFlag = true; // welcome.member: the lobby greys out room creation for guests
+    lobbyOptions.membersCreateOnly = true; // enforced by the lobby (server/lobby.js create), never by the client
+  }
   if (access) {
     // every device of one invite plays under one nickname: the invite's (the first device's, or the latest rename)
     netOptions.nameFor = (acc, name, { repeat }) => {

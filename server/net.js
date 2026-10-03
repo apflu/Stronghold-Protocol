@@ -654,11 +654,14 @@ export class Network {
       session.disconnectedAt = null;
     }
     session.name = name;
+    /** the invite of the socket this session is on now (server/access.js), or null: a guest (SP_ACCESS=host) */
+    session.access = conn.access || null;
     session.lastSeen = now;
     session.addr = conn.ip;
     session.limitKey = conn.key;
 
     const welcome = { t: 'welcome', playerId: session.playerId, token: session.token, name: session.name, serverNow: now, version: PROTOCOL_VERSION, resumed };
+    if (this.opts.memberFlag) welcome.member = !!session.access; // SP_ACCESS=host: may this player create rooms
     if (validRid(rid)) welcome.rid = rid;
     this.reply(conn, welcome);
     try {

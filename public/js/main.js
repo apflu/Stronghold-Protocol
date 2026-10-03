@@ -137,7 +137,8 @@ function onWelcome(msg) {
   const prev = store.get();
   const prevId = prev.me.playerId;
   const name = typeof msg.name === 'string' && msg.name ? msg.name : prev.me.name;
-  store.set({ me: { playerId: msg.playerId ?? null, name, token: typeof msg.token === 'string' ? msg.token : null } });
+  // member: SP_ACCESS=host — false for a guest (rooms are created by invited players only; the server enforces it)
+  store.set({ me: { playerId: msg.playerId ?? null, name, token: typeof msg.token === 'string' ? msg.token : null, member: typeof msg.member === 'boolean' ? msg.member : null } });
   welcomeAt = Date.now();
 
   if (prevId != null && prevId !== msg.playerId) {

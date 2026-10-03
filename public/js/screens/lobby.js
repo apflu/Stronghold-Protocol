@@ -244,6 +244,8 @@ export function LobbyScreen() {
       if (alive.current) setBusy(null);
     }
   };
+  // SP_ACCESS=host: the server says whether this player may create rooms (welcome.member; it refuses guests anyway)
+  const guest = me.member === false;
   const create = () => run('create', () => net.request('room.create', { mode: roomMode, difficulty }));
   const join = (c = code) => {
     const k = normalizeCode(c);
@@ -307,13 +309,15 @@ export function LobbyScreen() {
           ${DIFFICULTIES.map((d) => html`<${DifficultyCard} key=${d} roomMode=${roomMode} difficulty=${d} selected=${difficulty === d} onSelect=${pickDifficulty} />`)}
         </div>
         <div class="create-box">
-          <${Tooltip} block=${true} text=${online ? null : '正在连接服务器…'}>
-            <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" loading=${busy === 'create'} disabled=${!online} onClick=${create}>
+          <${Tooltip} block=${true} text=${!online ? '正在连接服务器…' : guest ? '仅受邀玩家可以创建房间' : null}>
+            <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" loading=${busy === 'create'} disabled=${!online || guest} onClick=${create}>
               ${roomMode === 'solo' ? '开始独立模拟' : '创建同盟'}
             <//>
           <//>
           <div class="create-box__hint">
-            ${online
+            ${online && guest
+              ? html`<span>本实例仅受邀玩家可以创建房间（包括独立模拟）。请向朋友要 ${ROOM_CODE_LEN} 位同盟密钥，在左侧加入他们的同盟。</span>`
+              : online
               ? html`<span>${roomMode === 'solo' ? '创建后即可开始模拟' : '创建后可邀请好友或添加 AI 队友'}</span>`
               : html`<${Spinner} size="sm" label="CONNECTING" />`}
           </div>

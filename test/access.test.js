@@ -108,3 +108,35 @@ test('server (SP_ACCESS=watch): nobody is blocked; open by default', async () =>
   const open = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
   try { assert.equal((await get(open.port, '/')).status, 200); } finally { await open.close(); }
 });
+
+test('server (SP_ACCESS=host): everyone plays, only invited devices create rooms — enforced by the server', async () => {
+  const file = tmpFile();
+  const { code } = new AccessStore(file).createInvite('host');
+  const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, access: 'host', accessFile: file });
+  try {
+    const port = srv.port;
+    assert.equal((await get(port, '/')).status, 200, 'the site is open');
+    const cm = cookieOf(await get(port, `/?invite=${encodeURIComponent(code)}`));
+    const member = await hello(port, cm, 'Host');
+    assert.equal(member.w.member, true);
+    const guest = await hello(port, null, 'Guest');
+    assert.equal(guest.w.member, false, 'welcome tells the client (it greys out room creation)');
+    // a guest's room.create is refused whatever the client sends (solo included)
+    for (const mode of ['coop', 'solo']) {
+      const r = await guest.c.request({ t: 'room.create', mode, difficulty: 'NORMAL' });
+      assert.equal(r.t, 'error');
+      assert.equal(r.code, 'FORBIDDEN', mode);
+    }
+    // the invited player creates; the guest joins by the code
+    assert.equal((await member.c.request({ t: 'room.create', mode: 'coop', difficulty: 'NORMAL' })).t, 'ok');
+    const room = (await member.c.waitFor('room.state')).code;
+    assert.equal((await guest.c.request({ t: 'room.join', code: room })).t, 'ok', 'a guest joins an invited player\'s room');
+    await guest.c.request({ t: 'room.leave' });
+    // code guessing: a guest network gets 10 wrong codes per minute
+    let last = null;
+    for (let i = 0; i < 11; i++) last = await guest.c.request({ t: 'room.join', code: i < 10 ? 'ZZZZ' : room });
+    assert.equal(last.code, 'RATE', 'the 11th try within a minute is refused, even with the right code');
+    await member.c.close();
+    await guest.c.close();
+  } finally { await srv.close(); }
+});
