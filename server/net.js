@@ -545,6 +545,8 @@ export class Network {
   handleConnection(ws, req) {
     if (this.closed) { try { ws.close(CLOSE.SHUTDOWN, 'server shutdown'); } catch { /* ignore */ } return; }
     const conn = new Connection(ws, clientAddress(req, this.opts.trustProxy), this.now(), this.opts);
+    /** the invite this socket was admitted under (server/access.js; set by server/index.js on the upgrade request) */
+    conn.access = req && req.spAccess ? req.spAccess : null;
     this.conns.set(ws, conn);
     if (conn.key) this.connsPerKey.set(conn.key, (this.connsPerKey.get(conn.key) || 0) + 1);
     ws.on('message', (data, isBinary) => {
@@ -627,12 +629,16 @@ export class Network {
       this.reply(conn, errorMsg(ERR.BAD_MSG, rid, `version mismatch: server ${PROTOCOL_VERSION}`));
       return;
     }
-    const name = sanitizeName(msg.name);
+    let name = sanitizeName(msg.name);
     if (!name) { this.reply(conn, errorMsg(ERR.BAD_MSG, rid, 'bad field name')); return; }
 
     let session = conn.session;
     let resumed = false;
     const repeat = !!session;
+    // invite-only access: every device of one invite plays under one nickname (server/index.js nameFor)
+    if (conn.access && typeof this.opts.nameFor === 'function') {
+      try { name = sanitizeName(this.opts.nameFor(conn.access, name, { repeat })) || name; } catch (e) { this.log.error('[net] nameFor crashed', e); }
+    }
     if (!session) {
       session = msg.token ? this.registry.byToken(msg.token) : null;
       if (session) {

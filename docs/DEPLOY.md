@@ -208,6 +208,18 @@ node tools/logs.mjs match ABCD --dir ~/stronghold-logs --acts   # 某个房间�
 
 一局完整的同盟模拟约 2 MB；日志不会自动清理。
 
+准入（可选）：`SP_ACCESS=invite` 时只有用邀请链接打开过本站的设备能进入（页面、静态资源和 WebSocket 都检查；`/healthz` 不受限）。一个链接对应一名玩家，最多 3 台设备，每台设备得到一个长期 cookie，不用再登录；同一链接下的所有设备共用一个昵称（第一台设备填的名字，之后任何一台改名都会同步）。邀请与设备记录保存在 `SP_ACCESS_FILE`（默认 `SP_LOG_DIR/access.json`，只存哈希）：
+
+```bash
+docker run … -e SP_ACCESS=invite -e SP_LOG_DIR=/app/logs -v ~/stronghold-logs:/app/logs stronghold-protocol
+SP_LOG_DIR=~/stronghold-logs SP_PUBLIC_URL=https://example.com node tools/access.mjs invite 小明   # 打印邀请链接（只显示一次）
+SP_LOG_DIR=~/stronghold-logs node tools/access.mjs list            # 邀请、昵称、设备、最近使用
+SP_LOG_DIR=~/stronghold-logs node tools/access.mjs kick <设备ID>    # 移除一台设备（腾出名额）
+SP_LOG_DIR=~/stronghold-logs node tools/access.mjs revoke <邀请ID>  # 停用整条邀请
+```
+
+运行中的服务器会在几秒内读到改动。先用 `SP_ACCESS=watch` 观察一段时间（事件日志里的 `access.deny` 行）再切到 `invite` 也可以。
+
 docker compose 示例：
 
 ```yaml

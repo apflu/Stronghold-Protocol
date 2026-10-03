@@ -35,9 +35,10 @@ import { promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { Network, SessionRegistry, NET_DEFAULTS } from './net.js';
+import { Network, SessionRegistry, NET_DEFAULTS, clientAddress } from './net.js';
 import { Lobby } from './lobby.js';
 import { eventLog } from './match/eventlog.js';
+import { AccessStore, COOKIE_NAME, COOKIE_MAX_AGE_S, MAX_DEVICES, parseAccessMode, parseCookies } from './access.js';
 import { getData, loadData } from './data.js';
 import { PROTOCOL_VERSION, APP_VERSION } from '../shared/constants.js';
 
@@ -521,6 +522,34 @@ export async function startServer(opts = {}) {
     if (eventLog.open(logDir)) log.info(`[log] event log → ${logDir}`);
     else log.warn(`[log] SP_LOG_DIR ${logDir} is not writable — event log off`);
   }
+  // invite-only access (server/access.js; docs/DEPLOY.md「准入」): SP_ACCESS open | watch | invite, SP_ACCESS_FILE
+  const accessMode = parseAccessMode(opts.access ?? process.env.SP_ACCESS);
+  let access = null;
+  if (accessMode !== 'open') {
+    const file = opts.accessFile ?? process.env.SP_ACCESS_FILE ?? (logDir ? path.join(logDir, 'access.json') : '');
+    if (file) { access = new AccessStore(file); log.info(`[access] ${accessMode} · ${file}`); }
+    else log.warn('[access] SP_ACCESS needs SP_ACCESS_FILE (or SP_LOG_DIR) — access stays open');
+  }
+  const gate = !!access && accessMode === 'invite';
+  /** The invite + device of a request's cookie, or null. */
+  const identify = (req) => (access ? access.verify(parseCookies(req.headers.cookie)[COOKIE_NAME]) : null);
+  const watchedAt = new Map(); // watch mode: one 'access.deny' line per address per hour
+  const noteDenied = (req, what) => {
+    if (!eventLog.enabled) return;
+    const addr = clientAddress(req, netOptions.trustProxy).ip;
+    const now = Date.now();
+    if (now - (watchedAt.get(addr) || 0) < 3600_000) return;
+    watchedAt.set(addr, now);
+    eventLog.write({ type: 'access.deny', mode: accessMode, what, addr, ua: String(req.headers['user-agent'] || '').slice(0, 160) });
+  };
+  if (access) {
+    // every device of one invite plays under one nickname: the invite's (the first device's, or the latest rename)
+    netOptions.nameFor = (acc, name, { repeat }) => {
+      const inv = access.invite(acc.invite.id) || acc.invite;
+      if (!inv.name || repeat) { if (inv.name !== name) access.setName(inv.id, name); return name; }
+      return inv.name;
+    };
+  }
   const lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, options: lobbyOptions });
   const network = new Network({ registry, handler: lobby, log, options: netOptions });
   const serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, log });
@@ -552,7 +581,38 @@ export async function startServer(opts = {}) {
       });
       return;
     }
+    if (access && handleAccess(req, res, parts)) return;
     await serveStatic(req, res, parts.rawPath, parts.query);
+  }
+
+  /** Invite links and the gate (server/access.js). Returns true when the request was answered here. */
+  function handleAccess(req, res, parts) {
+    const q = new URLSearchParams(parts.query || '');
+    const code = q.get('invite');
+    if (code) {
+      const cookies = parseCookies(req.headers.cookie);
+      const r = access.claim(code, { addr: clientAddress(req, netOptions.trustProxy).ip, ua: req.headers['user-agent'] || null, current: cookies[COOKIE_NAME] || null });
+      if (r && r.ok) {
+        if (!r.reused && eventLog.enabled) eventLog.write({ type: 'access.claim', invite: r.invite.id, note: r.invite.note, devices: r.invite.devices.filter((d) => !d.revoked).length, addr: clientAddress(req, netOptions.trustProxy).ip });
+        const https = String(req.headers['x-forwarded-proto'] || '').includes('https') || String(req.headers['cf-visitor'] || '').includes('https');
+        res.writeHead(302, {
+          Location: '/',
+          'Set-Cookie': `${COOKIE_NAME}=${encodeURIComponent(r.cookie)}; Path=/; Max-Age=${COOKIE_MAX_AGE_S}; HttpOnly; SameSite=Lax${https ? '; Secure' : ''}`,
+          'Cache-Control': 'no-store',
+        });
+        res.end();
+        return true;
+      }
+      const why = r && r.error === 'full' ? `这个邀请链接已经在 ${MAX_DEVICES} 台设备上使用过了，无法再添加新设备。需要更换设备请联系管理员。`
+        : r && r.error === 'revoked' ? '这个邀请链接已被管理员停用。' : '邀请链接无效，请确认链接完整（复制时不要漏掉末尾）。';
+      sendError(req, res, 403, '邀请链接无法使用 · Invite not usable', why);
+      return true;
+    }
+    if (identify(req)) return false;
+    noteDenied(req, parts.rawPath);
+    if (!gate) return false; // watch mode: logged, served
+    sendError(req, res, 403, '本站仅限受邀玩家 · Invite only', '请使用管理员发给你的邀请链接打开本站。打开过一次之后，这台设备以后直接访问即可。');
+    return true;
   }
 
   server.on('clientError', (err, socket) => {
@@ -574,6 +634,11 @@ export async function startServer(opts = {}) {
       try { socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`); } catch { socket.destroy(); }
     };
     if (!parts || parts.rawPath !== '/ws') { reject(404, 'Not Found'); return; }
+    if (access) {
+      const who = identify(req);
+      if (who) req.spAccess = who;
+      else { noteDenied(req, '/ws'); if (gate) { reject(403, 'Forbidden'); return; } }
+    }
     const refused = network.admission(req);
     if (refused === 'per-address') { reject(429, 'Too Many Requests'); return; }
     if (refused) { reject(503, 'Service Unavailable'); return; }
