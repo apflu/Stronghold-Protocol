@@ -95,6 +95,10 @@
 //                      parameters, or null)
 //   opts.botPreferBond bond id (env SP_BOT_PREFER_BOND, default none): every bot builds this bond to its top threshold
 //                      first (bot.js; an unknown id is ignored — m.botPreferBond = the id, or null)
+//   opts.botHelpLast   boolean (env SP_BOT_HELP_LAST=1): 联防 helpers are humans first, AI seats only for a slot left
+//                      (unite.js helperOrder — the helpers collect the kill bounties of the leaks they beat)
+//   opts.botPreferBand band id (env SP_BOT_PREFER_BAND, e.g. band_amiya): an AI seat takes it in the strategy draft
+//                      whenever it is still free (bot.js botPickBand; AI 托管 seats keep the plain pick)
 //   opts.bossHpMul     leader pool multiplier, both boss rounds (env SP_BOSS_HP_MUL; SP_BOSS_HP_MUL_SOLO / _COOP override
 //                      it per mode; 0.1–100, default 1 = the official pool) → m.gd.hostBossHpMul (GameData.bossPoolShare)
 //   opts.bonusFunds    extra coins per round start for the human of a solo match (env SP_BONUS_FUNDS, 0–50, default 0)
@@ -288,6 +292,11 @@ export class Match {
     /** SP_BOSS_HP_MUL*: the host's leader pool multiplier for this match (1 = official) */
     this.bossHpMul = mulOf(opts.bossHpMul) ?? mulOf(env(this.isSolo ? 'SP_BOSS_HP_MUL_SOLO' : 'SP_BOSS_HP_MUL_COOP')) ?? mulOf(env('SP_BOSS_HP_MUL')) ?? 1;
     this.gd.hostBossHpMul = this.bossHpMul;
+    /** SP_BOT_HELP_LAST: humans before AI seats among the 联防 helpers */
+    this.botHelpLast = opts.botHelpLast != null ? !!opts.botHelpLast : parseFlag(env('SP_BOT_HELP_LAST'));
+    const preferBand = String(opts.botPreferBand ?? env('SP_BOT_PREFER_BAND') ?? '').trim();
+    /** SP_BOT_PREFER_BAND: the strategy an AI seat takes when it is still free, or null */
+    this.botPreferBand = preferBand && this.gd.band(preferBand) && this.gd.bandAllowed(preferBand) ? preferBand : null;
     const bonus = Math.trunc(Number(opts.bonusFunds ?? env('SP_BONUS_FUNDS') ?? 0));
     const bonusFor = String(opts.bonusFundsFor ?? env('SP_BONUS_FUNDS_FOR') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
     const human = opts.seats.find((s) => s && !s.isBot);

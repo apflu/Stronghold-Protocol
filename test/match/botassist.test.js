@@ -173,3 +173,42 @@ test('SP_BOSS_HP_MUL: the host multiplies every leader pool (per mode overrides)
     for (const [k, v] of [['SP_BOSS_HP_MUL', saved.a], ['SP_BOSS_HP_MUL_SOLO', saved.s], ['SP_BOSS_HP_MUL_COOP', saved.c]]) { if (v == null) delete env[k]; else env[k] = v; }
   }
 });
+
+test('SP_BOT_HELP_LAST: humans before AI seats among the 联防 helpers (AI only for a slot left)', async () => {
+  const { helperOrder } = await import('../../server/match/unite.js');
+  const seats = [
+    { seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true },
+    { seat: 1, playerId: 'p_0', name: 'P0', isBot: false, connected: true },
+    { seat: 2, playerId: 'p_1', name: 'P1', isBot: false, connected: true },
+  ];
+  const order = (o) => {
+    const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seats, fake: true, ...o });
+    const perfects = [...h.m.players.values()];
+    const ids = helperOrder(h.m, perfects, new Map()).map((p) => p.playerId);
+    h.m.dispose();
+    return ids;
+  };
+  assert.ok(order({}).includes('ai_0'), 'without it the seat order may pick the AI');
+  assert.deepEqual(order({ botHelpLast: true }).sort(), ['p_0', 'p_1'], 'two humans fill both slots');
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seats, fake: true, botHelpLast: true });
+  const ai = h.m.players.get('ai_0');
+  assert.deepEqual(helperOrder(h.m, [ai, h.m.players.get('p_0')], new Map()).map((p) => p.playerId).sort(), ['ai_0', 'p_0'], 'the AI still helps when a slot is left');
+  h.m.dispose();
+});
+
+test('SP_BOT_PREFER_BAND: an AI seat takes the strategy while it is free; 阿米娅 makes a bot build wide', async () => {
+  const { botPickBand } = await import('../../server/match/bot.js');
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 1, bots: 1, fake: true, botPreferBand: 'band_amiya' });
+  const m = h.m;
+  const bot = m.players.get('ai_0');
+  const human = m.players.get('p_0');
+  assert.equal(botPickBand(m, bot), 'band_amiya');
+  const draws = new Set(Array.from({ length: 30 }, () => botPickBand(m, human)));
+  assert.ok(draws.size > 1, 'AI 托管 on a human seat keeps the plain weighted pick');
+  const taken = m.bandTaken;
+  m.bandTaken = (id) => id === 'band_amiya';
+  assert.notEqual(botPickBand(m, bot), 'band_amiya', 'a teammate took it: the plain pick');
+  m.bandTaken = taken;
+  assert.equal(makeMatch({ fake: true, botPreferBand: 'no_such_band' }).m.botPreferBand, null);
+  m.dispose();
+});

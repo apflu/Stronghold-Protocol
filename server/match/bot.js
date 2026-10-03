@@ -124,6 +124,20 @@ const lateTierMul = (m) => (m.botAssist && m.round >= m.botAssist.lateTierFrom ?
  *  lineup that reaches it (players asked for AI teammates that play 3 坚守). */
 const PREFER_BUY = 20;
 const PREFER_LINEUP = 30;
+/**
+ * 阿米娅 众志合一 (act1autochess_band2_buff): ATK / max HP + per 3 / 4 / 5+ active bonds — a bot holding it builds wide:
+ * each reached threshold is worth DIVERSE_LINEUP (a little above PREFER_LINEUP, players' ask), a chess that would
+ * activate one more bond DIVERSE_BUY while the top threshold is not reached. [] for every other strategy.
+ */
+const DIVERSE_LINEUP = 35;
+const DIVERSE_BUY = 8;
+function diverseThresholds(m, ps) {
+  const p = ps && ps.isBot && ps.bandId ? m.gd.band(ps.bandId)?.params : null;
+  if (!p || p.key !== 'act1autochess_band2_buff') return [];
+  const out = [];
+  for (let i = 1; Number.isFinite(p[`value_${i}`]); i++) out.push(p[`value_${i}`]);
+  return out;
+}
 /** Top threshold (distinct members) of the preferred bond, or 0 when none is set. */
 function preferTop(m) {
   const b = m.botPreferBond ? m.gd.bond(m.botPreferBond) : null;
@@ -149,6 +163,9 @@ export function botPickBand(m, ps) {
   const gd = m.gd;
   const ids = gd.bandIds();
   if (!ids.length) return gd.defaultBandId;
+  // SP_BOT_PREFER_BAND (Match.botPreferBand): an AI seat takes it while no teammate has (AI 托管 keeps the plain pick)
+  const pref = m.botPreferBand;
+  if (pref && ps && ps.isBot && ids.includes(pref) && !(typeof m.bandTaken === 'function' && m.bandTaken(pref, ps.playerId))) return pref;
   const lateFunds = (id) => /暂存/.test(String(gd.band(id)?.desc || ''));
   const offBond = (id) => gd.bandBondIds(id).some((b) => gd.modeInactiveBonds.has(b));
   const pairs = ids.map((id) => [id, offBond(id) ? 0 : Math.max(1, (gd.startLp(id) - 18) ** 2) * (m.isSolo && lateFunds(id) ? 0.02 : 1)]);
@@ -528,6 +545,11 @@ function lineupScore(m, ps, set, ctx) {
     const w = bond && bond.isCore ? 14 : 9;
     v += b.tier * w + Math.min(12, (b.layers || 0) * 0.1) + (id === ctx.focus ? 6 : 0);
   }
+  if (ctx.diverse && ctx.diverse.length) {
+    let active = 0;
+    for (const b of Object.values(bonds)) if (b.tier) active++;
+    for (const t of ctx.diverse) if (active >= t) v += DIVERSE_LINEUP;
+  }
   const pref = ctx.prefer;
   if (pref) {
     const members = new Set();
@@ -599,6 +621,24 @@ function buyScore(m, ps, id, ctx) {
     }
   }
   if (!ctx.owned.bases.has(base)) s += bondValue(m, c, ctx.owned, ctx.focus, ctx.second, ctx.prefer);
+  // 阿米娅: a chess that would activate one more bond (its first threshold) while the band's top tier is not reached
+  if (ctx.diverse && ctx.diverse.length && !ctx.owned.bases.has(base)) {
+    let activeNow = 0;
+    let opens = false;
+    for (const [b, n] of ctx.owned.counts) {
+      const bond = gd.bond(b);
+      if (!bond || gd.modeInactiveBonds.has(b)) continue;
+      const th0 = Array.isArray(bond.thresholds) && bond.thresholds.length ? bond.thresholds[0] : bond.activeCount || 2;
+      if (n >= th0) activeNow++;
+    }
+    for (const b of c.bonds || []) {
+      const bond = gd.bond(b);
+      if (!bond || gd.modeInactiveBonds.has(b)) continue;
+      const th0 = Array.isArray(bond.thresholds) && bond.thresholds.length ? bond.thresholds[0] : bond.activeCount || 2;
+      if ((ctx.owned.counts.get(b) || 0) + 1 === th0) opens = true;
+    }
+    if (opens && activeNow < Math.max(...ctx.diverse)) s += DIVERSE_BUY;
+  }
   // role needs
   if (isBlocker(c) && ctx.roles.blockers < 2) s += 10;
   if (hitsFly(c) && ctx.fly > 0 && ctx.roles.antiAir < 2) s += 8;
@@ -1169,7 +1209,7 @@ function context(m, ps) {
   for (const [b, k] of copies) if (k + 1 >= mergeNeed(m, b)) pairs++;
   return {
     owned, focus: plan.focus, second: plan.second, keep: keeperBases(m, ps, plan), copies, pairs, roles: roles(m, ps), fly: model.flyTotal, model,
-    late: ps.isBot ? lateTierMul(m) : 1, prefer: ps.isBot ? m.botPreferBond : null,
+    late: ps.isBot ? lateTierMul(m) : 1, prefer: ps.isBot ? m.botPreferBond : null, diverse: diverseThresholds(m, ps),
   };
 }
 
