@@ -21,7 +21,7 @@
 //   trap_copy_front_char                                  画卷 (Art)            copy the chess on the tile / in front
 //   trap_create_self_choice {choice_event}                教鞭 / 神秘顾客 (Art)  add a random bounty to your next battle
 // [ASSUMED simplifications, documented in docs/META.md: 教鞭/神秘顾客 pick the bounty for the player instead of opening
-//  a personal choice overlay; 突变细胞 consumes itself.]
+//  a personal choice overlay. 突变细胞: the content override (sim/content/items/meta.js) returns the cell to the hand.]
 
 import { getData } from '../data.js';
 import { itemKey } from './gamedata.js';

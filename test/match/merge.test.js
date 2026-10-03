@@ -347,7 +347,10 @@ test('a merge completed during SETTLE (突变细胞) keeps its reward offer for 
       assert.equal(loc.area, 'hand', `${label}: the consumed hand pieces freed the slots`);
     }
     assert.equal(ps.hand.filter((p) => p && p.kind === 'item').length, fillers0, `${label}: the hand's equipment stays`);
-    assert.ok(ps.tempEmpty && ps.privateView().canReady, `${label}: nothing waits in temp`);
+    // 突变细胞 comes back after the battle (reusable): into a freed hand slot, or temp when the hand is full
+    const cells = [...ps.hand, ...ps.temp].filter((p) => p && p.id === 'chess_item_5_08_e_a');
+    assert.equal(cells.length, 1, `${label}: the cell is back`);
+    assert.ok(ps.temp.every((p) => !p || p.id === 'chess_item_5_08_e_a'), `${label}: nothing else waits in temp`);
     checkInvariants(m);
     // it expires at the end of that prep like any other offer
     h.drive(() => m.phase === PHASE.COMBAT && m.round === 2);

@@ -11,8 +11,10 @@
 //               the target's items skipped the item after a merge)
 //   紧急调度券   a shop operator leaves its slot only when it was actually granted (built-in cleared the slot first)
 //   寻呼模块     the special refresh shows `refresh_cnt` DIFFERENT operators (fewer when the pool has no more)
-//   突变细胞     after the battle the carrier becomes a NORMAL random tier+1 operator; its other equipment goes back to
-//               the hand (built-in kept it on the new operator)
+//   突变细胞     after the battle the carrier becomes a NORMAL random tier+1 operator; the cell and its other equipment go
+//               back to the hand (built-in kept the other items on the new operator and consumed the cell) — the cell is
+//               reusable every round: 昆图斯 grants a single one, and players of the official mode report it falling back
+//               to the 整备区 after each use (user report 2026-10-03)
 //   教鞭        trap_create_self_choice {choice_event: hunter_band_1}: the bounty is a 战术特训 card (choices.json
 //               cards.bounty payout `perfect`, e.g. 战术特训·飞行I "若各自行动阶段就达成完美作战，获得1资金") — PRTS
 //               卫戍协议：盟约 下半/PRTS盟约记录 §法术 教鞭 "于3个战术特训的悬赏任务中选择一项", §机变阶段 "※以下悬赏任务仅由
@@ -111,9 +113,9 @@ export function registerMeta(registry) {
       const tier = Math.min(6, ctx.gd.tierOf(holder.id) + 1);
       const id = ctx.rollChess({ tier });
       if (!id) return;
-      const others = (ctx.piece(holder.uid)?.items || holder.items || []).filter((it) => it && it.uid !== piece.uid);
-      ctx.destroyPiece(piece.uid);
-      for (const it of others) {
+      // every item of the carrier, the cell included, goes back to the hand (overflow: temp)
+      const items = (ctx.piece(holder.uid)?.items || holder.items || []).filter(Boolean);
+      for (const it of items) {
         if (ctx.destroyPiece(it.uid)) ctx.grantItem(it.id, { source: 'mutation' });
       }
       ctx.transform(holder.uid, ctx.gd.baseIdOf(id));

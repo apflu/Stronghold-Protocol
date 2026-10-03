@@ -647,7 +647,10 @@ export function specBounds(spec, gd = null) {
     keyCounts, keySourceCounts, derivedSourceCounts, uncountedKeys, derived, spawnCount, bountyCoins, sources, players,
     // content spawns (splits, summons, boss minions) can add enemies beyond the schedule
     maxTotal,
-    layerCap: 60 + 4 * round,
+    // layer gains per battle: 60 + 4·round, plus 4 per scheduled enemy — in-battle 特质 scale with the enemies (银灰 / 初雪:
+    // +1 at 50 % every time an enemy in range freezes, and enemies freeze again and again; an honest 谢拉格 board of
+    // 5 members gained 142 in a R12 battle once 突变细胞 became reusable, past the old 108)
+    layerCap: 60 + 4 * round + 4 * spawnCount,
     maxTime: spec && spec.timeLimit > 0 ? spec.timeLimit + 5 : HARD_CAP_SECONDS,
   };
 }
@@ -686,7 +689,7 @@ const sameMods = (a, b) => {
  * `counted: false` only for enemies that never count (data notCountInTotal, countInTotal false, boss / part entries,
  * content spawns); 联防: leaks + never-spawned re-entries per (enemy, leaker) ≤ what that leaker sent in, and a split /
  * summon only on a leaker who sent in its parent, ≤ the parents' data offspring count (offspringPerParent); per-bond layer
- * gains ≤ 60 + 4·round and ≤ the room left under BOND_LAYER_CAP (999) from the bond's starting layers, only on bonds the
+ * gains ≤ 60 + 4·round + 4·scheduled enemies and ≤ the room left under BOND_LAYER_CAP (999) from the bond's starting layers, only on bonds the
  * player's lineup / band / effects / items name, none when the spec disables gains; coins ≤ the spawns' bounty coins;
  * perfect consistent with the counted leaks; unit states only for the player's own units, within range.
  * @returns {{ ok: true, result: object } | { ok: false, reason: string }}

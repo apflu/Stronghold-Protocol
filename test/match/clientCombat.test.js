@@ -148,7 +148,8 @@ test('validation: implausible client results are rejected and replaced by the se
   assert.equal(bad((r) => { r.perPlayer.p.coins = 7; }).reason, 'coins');
   assert.equal(bad((r) => { r.perPlayer.p.leaked.push(...Array(3).fill({ enemyKey: 'enemy_1007_slime', counted: true })); }).reason, 'leak multiset');
   assert.equal(bad((r) => { r.perPlayer.p.perfect = true; }).reason, 'perfect');
-  assert.equal(bad((r) => { r.perPlayer.p.layerGains.yanShip = 73; }).reason, 'layer bound');
+  assert.equal(bad((r) => { r.perPlayer.p.layerGains.yanShip = 84; }).ok, true, '60 + 4·3 + 4·3 enemies');
+  assert.equal(bad((r) => { r.perPlayer.p.layerGains.yanShip = 85; }).reason, 'layer bound');
   assert.equal(bad((r) => { r.time = 500; }).reason, 'time');
   assert.equal(bad((r) => { r.perPlayer.q = r.perPlayer.p; }).reason, 'players');
   assert.equal(bad((r) => { r.perPlayer.p.unitsEnd[0].hpPct = 2; }).reason, 'unit state');
