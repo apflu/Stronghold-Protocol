@@ -2087,13 +2087,25 @@ export class FxSystem {
     this.vigT = 0.9;
   }
 
-  /** Screen-space pop (bond layer gain / bounty coins). `icon` = texture or null. */
-  pop(icon, label, tint, i = 0) {
+  /**
+   * Screen-space pop (bond layer gain / bounty coins). `icon` = texture or null. `strip`: a bond layer pop — it lines up
+   * right of the bond strip's last disc (ctx.popAnchor; the strip, DOM over the canvas, covered pops at the top centre
+   * once it held many bonds); otherwise, or without a strip, the top centre of the field.
+   */
+  pop(icon, label, tint, i = 0, { strip = false } = {}) {
     const P = this.P;
     const size = this.ctx.screenSize();
-    const top = this.ctx.fieldTop ? this.ctx.fieldTop() : size.height * 0.2;
+    const anchor = strip && this.ctx.popAnchor ? this.ctx.popAnchor() : null;
+    let x, top;
+    if (anchor) {
+      // the first pop just right of the strip, the next ones further right (icon 46 px + its "+N" label)
+      x = Math.min(size.width - 60, anchor.x + 40 + ((Math.max(1, i) - 1) % 5) * 84);
+      top = Math.max(40, anchor.y);
+    } else {
+      top = this.ctx.fieldTop ? this.ctx.fieldTop() : size.height * 0.2;
+      x = size.width / 2 + (i % 5 - 2) * 70;
+    }
     const c = new P.Container();
-    const x = size.width / 2 + (i % 5 - 2) * 70;
     c.position.set(x, top);
     if (icon) {
       const glow = new P.Sprite(this.tex.glow);

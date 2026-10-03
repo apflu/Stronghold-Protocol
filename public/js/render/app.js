@@ -496,6 +496,20 @@ export async function createFieldView(host, options = {}) {
       const p = cam.project((R.c0 + R.c1) / 2, R.r1 + 0.5, 1.6);
       return Math.max(80, Math.min(size().height * 0.4, p.y));
     },
+    // the right end of the bond strip (DOM, ui/bondStrip.js: its last disc or the "+N" more badge) in canvas px: bond
+    // layer pops line up right of it instead of the screen's top centre, where a long strip covered them; null when
+    // no strip is shown
+    popAnchor: () => {
+      try {
+        const strip = document.querySelector('.bstrip:not(.bstrip--empty)');
+        const last = strip && strip.lastElementChild;
+        if (!last) return null;
+        const r = last.getBoundingClientRect();
+        if (!(r.width > 0 && r.height > 0)) return null;
+        const cr = canvas.getBoundingClientRect();
+        return { x: r.right - cr.left, y: r.top + r.height * 0.4 - cr.top };
+      } catch { return null; }
+    },
   });
   ctx.fx = fx;
   // battle devices (crates / turrets as sim units): the official crate mesh in the 3D scene, else a Pixi box
@@ -1446,7 +1460,7 @@ export async function createFieldView(host, options = {}) {
         const url = assets.bondIcon ? assets.bondIcon(bondId) : null;
         let tex = null;
         if (url) { try { tex = P.Texture.from(url); } catch { tex = null; } }
-        fx.pop(tex, `+${n}`, 0xffffff, layerPops.size);
+        fx.pop(tex, `+${n}`, 0xffffff, layerPops.size, { strip: true });
         break;
       }
       case 'bounty': {
