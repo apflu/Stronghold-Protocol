@@ -27,6 +27,7 @@
 //   view.on(name, fn) → unsubscribe ; view.off(name, fn)
 //        pieceDragStart { uid, piece, from } · pieceDrop { uid, piece, from, target } · pieceDragEnd {uid, dropped}
 //        pieceClick { uid, piece, button, detail, clientX, clientY } (battle units: { unitId, uid, unit, … })
+//        tileClick { row, col, stageId, button, clientX, clientY } (a press on no unit / piece: the tile under it)
 //        pieceDetail (right-click / long-press) · pieceHover { uid } | { uid: null } (battle: + unitId, unit)
 //        tileHover { row, col, area, idx } | null (while dragging: the drop target — the tile under the pointer)
 //   view.pieceScreenRect(uid) → { left, top, right, bottom, width, height, x, y } (client px: the drawn body) | null
@@ -1203,18 +1204,24 @@ export async function createFieldView(host, options = {}) {
         const payload = { unitId: v.id, uid: info?.uid ?? null, unit: info, button: e.button, detail: e.button === 2, clientX: e.clientX, clientY: e.clientY };
         emit('pieceClick', payload);
         if (e.button === 2) emit('pieceDetail', payload);
-      } else if (penViews.size) {
-        const pv = penUnitAt(ev.x, ev.y);
+      } else {
+        const pv = penViews.size ? penUnitAt(ev.x, ev.y) : null;
         if (pv) emitPenClick(pv, e);
+        else emitTileClick(ev, e);
       }
       return;
     }
     if (drag.pointerDown(ev)) { try { canvas.setPointerCapture(e.pointerId); } catch { /* ignore */ } return; }
-    if (penViews.size && mode === 'prep') {
-      const pv = penUnitAt(ev.x, ev.y);
-      if (pv) emitPenClick(pv, e);
-    }
+    const pv = penViews.size && mode === 'prep' ? penUnitAt(ev.x, ev.y) : null;
+    if (pv) emitPenClick(pv, e);
+    else emitTileClick(ev, e);
   };
+  /** A press on no unit: the tile under it (the UI shows what a special tile / device there does, ui/terrainInfo.js). */
+  function emitTileClick(ev, e) {
+    if (e.button != null && e.button !== 0 && e.button !== 2) return;
+    const t = groundTile(ev.x, ev.y);
+    if (t) emit('tileClick', { row: t.row, col: t.col, stageId: stageRec ? stageRec.id : null, button: e.button, clientX: e.clientX, clientY: e.clientY });
+  }
   const onPointerMove = (e) => {
     if (destroyed) return;
     const ev = evPayload(e);

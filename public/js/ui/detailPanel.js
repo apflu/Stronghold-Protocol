@@ -454,9 +454,20 @@ export function TokenDetail({ token, piece, ownerId = null, snapHp = null, live 
     ${talents.length ? html`<${Section} title="天赋">${talents.map((t, i) => html`<p class="dtext" key=${i}><b>${t.name}</b> ${t.desc}</p>`)}<//>` : null}`;
 }
 
+/** A special tile / device of the battlefield (ui/terrainInfo.js tileFeatures): name, kind and what it does. */
+export function TerrainDetail({ features }) {
+  return html`<div class="dterrain">
+    ${features.map((f) => html`<section key=${f.id} class="dterrain__item">
+      <${MicroLabel} tone="mint">${f.kind === 'device' ? 'DEVICE // 地图装置' : 'TERRAIN // 特殊地块'}</${MicroLabel}>
+      <h3 class="dhead__name">${f.name}</h3>
+      <p class="dterrain__text">${f.text}</p>
+    </section>`)}
+  </div>`;
+}
+
 /**
  * Resolve what a detail target shows.
- * @param {{ kind:'piece'|'chess'|'item'|'enemy'|'unit'|'token', id?:string, uid?:number, unit?:any, count?:number }} target
+ * @param {{ kind:'piece'|'chess'|'item'|'enemy'|'unit'|'token'|'terrain', id?:string, uid?:number, unit?:any, count?:number, features?:any[] }} target
  * @param {Map<number, any>} pieces indexPieces(priv)
  */
 export function resolveDetail(target, pieces) {
@@ -474,6 +485,7 @@ export function resolveDetail(target, pieces) {
   if (target.kind === 'item') { const it = data.lookup('items', target.id); return it ? { type: 'item', item: it } : null; }
   if (target.kind === 'enemy') { const en = data.lookup('enemies', target.id); return en ? { type: 'enemy', enemy: en, count: target.count } : null; }
   if (target.kind === 'token') { const t = data.lookup('tokens', target.id); return t ? { type: 'token', token: t } : null; }
+  if (target.kind === 'terrain') return Array.isArray(target.features) && target.features.length ? { type: 'terrain', features: target.features } : null;
   if (target.kind === 'unit') {
     const u = target.unit || {};
     const own = Number.isInteger(u.uid) ? pieces?.get(u.uid) : null;
@@ -525,6 +537,7 @@ export function DetailPanel({ detail, editable, snapHp, onClose, onSell, onDestr
       ${detail.type === 'item' ? html`<${ItemDetail} item=${detail.item} piece=${detail.piece} editable=${editable} onDestroy=${destroyIt} />` : null}
       ${detail.type === 'enemy' ? html`<${EnemyDetail} enemy=${detail.enemy} snapHp=${snapHp} count=${detail.count} live=${liveNow} />` : null}
       ${detail.type === 'token' ? html`<${TokenDetail} token=${detail.token} piece=${detail.piece} ownerId=${detail.ownerId ?? null} snapHp=${snapHp} live=${liveNow} />` : null}
+      ${detail.type === 'terrain' ? html`<${TerrainDetail} features=${detail.features} />` : null}
     </div>
   </aside>`;
 }

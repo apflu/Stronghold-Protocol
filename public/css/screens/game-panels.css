@@ -160,6 +160,11 @@
 .dgarrison__k { font-size: .14rem; font-weight: 900; letter-spacing: .12em; color: var(--gold-2); }
 .dgarrison__type { display: inline-flex; align-items: center; gap: .04rem; font-size: .12rem; line-height: 1.5; color: var(--gold-2); padding: 0 .07rem 0 .03rem; border: 1px solid rgba(242, 189, 62, .4); }
 .dgarrison__icon { width: .18rem; height: .18rem; object-fit: contain; }
+/* special tile / device card (detailPanel TerrainDetail): as tall as its text */
+.dpanel--terrain { bottom: auto; }
+.dterrain { display: flex; flex-direction: column; gap: .2rem; padding: .04rem 0; }
+.dterrain__item .dhead__name { margin: .04rem 0 .06rem; }
+.dterrain__text { font-size: .15rem; line-height: 1.55; color: var(--text-hi); margin: 0; }
 .dgarrison__text { font-size: .15rem; line-height: 1.55; color: var(--text-hi); }
 .dbonds { display: flex; flex-wrap: wrap; gap: .08rem; }
 .dbond { display: inline-flex; align-items: center; gap: .05rem; padding: .03rem .1rem .03rem .05rem; font-size: .15rem; background: rgba(78, 216, 175, .08); border: 1px solid var(--mint-800); color: var(--mint-400); }

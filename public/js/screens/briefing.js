@@ -13,6 +13,7 @@ import { factionTypes, bannedPerBond, sortedPlayers, phaseTotalSeconds, disabled
 import { bondIconUrl, enemyIconUrl, factionIconUrl } from '../ui/assetUrls.js';
 import { useStore } from '../store.js';
 import { data } from '../data.js';
+import { stageFeatures } from '../ui/terrainInfo.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -63,6 +64,8 @@ export function BriefingScreen() {
   const boss = pub.bossId ? gd.boss(pub.bossId) : null;
   const bossEnemy = boss ? gd.enemy(boss.enemyKey) : null;
   const stage = pub.stageId ? gd.stage(pub.stageId) : null;
+  // devices that start off (“双眼皮” on every stage, 战场#02's crates / platforms) only appear through a strategy or map card
+  const features = stageFeatures(stage).filter((f) => !f.optional);
   // the mode's battlefield pool (config.json modes[].stages): 标准 is always 战场#01, 险境+ draw one at random
   const poolN = Array.isArray(mode?.stages) ? mode.stages.length : 0;
   const pool = poolN > 1 ? `战场随机（共${poolN}张）` : poolN === 1 ? '战场固定' : '';
@@ -102,6 +105,14 @@ export function BriefingScreen() {
           <span class="brief-stage__k"><${MicroLabel}>BATTLEFIELD</${MicroLabel}>${pool ? html`<span class="brief-stage__pool">${pool}</span>` : null}</span>
           <span class="brief-stage__name"><${Icon} name="rook" />${stage?.name || pub.stageId || '—'}</span>
         </div>
+        ${features.length ? html`<div class="brief-features">
+          <h3 class="brief-h"><span>地图特性</span><${MicroLabel}>TERRAIN</${MicroLabel}></h3>
+          ${features.map((f) => html`<div key=${f.id} class="brief-feature">
+            <b>${f.name}</b>
+            <span>${f.text}</span>
+          </div>`)}
+          <p class="t-dim brief-features__tip">休整期或作战中点击地图上的特殊地块，也可以查看说明</p>
+        </div>` : null}
         <div class="brief-factions">
           <h3 class="brief-h"><span>特训敌人</span><${MicroLabel}>SPECIAL ENEMIES</${MicroLabel}></h3>
           ${types.length ? types.map((t) => html`<div key=${t} class="brief-faction">

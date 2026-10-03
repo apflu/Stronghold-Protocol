@@ -66,6 +66,7 @@ import { BondStrip, BondPopup } from '../ui/bondStrip.js';
 import { TeamPanel } from '../ui/teamPanel.js';
 import { ShopBar } from '../ui/shopBar.js';
 import { DetailPanel, resolveDetail } from '../ui/detailPanel.js';
+import { tileFeatures } from '../ui/terrainInfo.js';
 import { RewardOverlay } from '../ui/rewardOverlay.js';
 import { ChoiceOverlay } from '../ui/choiceOverlay.js';
 import { EnemyDrawer } from '../ui/enemyDrawer.js';
@@ -763,6 +764,13 @@ function MatchScreen() {
         if (onOwnSlot) return; // put back where it was
         const reason = dropFailureReason(L.placeCtx, e.uid, tile);
         if (reason) refuse(reason);
+      }),
+      // a special tile / device (活性源石, 排气格栅, 源石流 …): its card (ui/terrainInfo.js); other tiles change nothing
+      view.on('tileClick', (e) => {
+        const L = live.current;
+        if (!e || L.facing) return;
+        const features = tileFeatures(e.stageId ? data.lookup('stages', e.stageId) : null, e.row, e.col);
+        if (features.length) setDetail({ kind: 'terrain', features });
       }),
       view.on('pieceClick', (e) => {
         if (!e) return;
