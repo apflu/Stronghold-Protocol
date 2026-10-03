@@ -3,6 +3,7 @@
 // tools/logs.mjs (online / history rooms, players, one match's timeline).
 //
 // What is recorded (each line: { t: ISO time, type, … }; match lines also carry room, match, seed, round, phase):
+//   server     server.start at every start (tools/logs.mjs drops the rooms of the previous run)
 //   lobby      room.create / join / leave / start / end / dispose with the seats (names, bots) and the client address;
 //              a 'rooms' snapshot of every live room every ROOMS_EVERY_MS
 //   match      match.start (mode, difficulty, stage, boss, hidden boss, factions, seats, loadouts), phase changes,

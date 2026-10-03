@@ -519,7 +519,7 @@ export async function startServer(opts = {}) {
   // the host's event log (docs/DEPLOY.md「事件日志」; tools/logs.mjs reads it)
   const logDir = opts.logDir ?? process.env.SP_LOG_DIR ?? '';
   if (logDir && !eventLog.enabled) {
-    if (eventLog.open(logDir)) log.info(`[log] event log → ${logDir}`);
+    if (eventLog.open(logDir)) { log.info(`[log] event log → ${logDir}`); eventLog.write({ type: 'server.start', app: APP_VERSION, pid: process.pid }); }
     else log.warn(`[log] SP_LOG_DIR ${logDir} is not writable — event log off`);
   }
   // invite-only access (server/access.js; docs/DEPLOY.md「准入」): SP_ACCESS open | watch | invite, SP_ACCESS_FILE

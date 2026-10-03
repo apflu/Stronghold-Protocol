@@ -35,7 +35,8 @@ function readEvents(maxDays = days) {
       try { out.push(JSON.parse(line)); } catch { /* a torn last line */ }
     }
   }
-  return out;
+  // by time (stable): a line appended later for an earlier moment (a hand-added marker) lands where it belongs
+  return out.map((e, i) => [e, i]).sort((a, b) => (a[0].t < b[0].t ? -1 : a[0].t > b[0].t ? 1 : a[1] - b[1])).map(([e]) => e);
 }
 
 // names from the game data next to this tool (optional)
@@ -60,6 +61,8 @@ function rooms() {
   const live = new Map();
   for (const e of ev) {
     if (e.type === 'rooms') { snapAt = e.t; live.clear(); for (const r of e.rooms) live.set(r.room, { ...r, since: null }); continue; }
+    // a (re)start: whatever ran before is gone (a killed container logs no room.dispose)
+    if (e.type === 'server.start') { snapAt = e.t; live.clear(); continue; }
     if (!e.type.startsWith('room.')) continue;
     if (e.type === 'room.dispose') { live.delete(e.room); continue; }
     const r = live.get(e.room) || { room: e.room, mode: e.mode, difficulty: e.difficulty, inMatch: false, since: e.t };
