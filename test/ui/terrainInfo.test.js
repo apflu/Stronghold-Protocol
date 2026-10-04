@@ -22,7 +22,7 @@ test('every stage in the rotation lists its special tiles with the stage\'s numb
   assert.ok(stageFeatures(stages.act1autochess_m01).find((f) => f.id === 'turret').optional);
   const inf = stageFeatures(stages.act1autochess_m04).find((f) => f.id === 'infection');
   assert.match(inf.text, /攻击力 \+20%、攻击速度 \+20，但每秒受到 70 点真实伤害/);
-  assert.match(terrainFeature('mire', stages.act2autochess_m02).text, /每 3 秒再叠 1 层（最多 10 层），每层攻击速度 -5、移动速度 -5%/);
+  assert.match(terrainFeature('mire', stages.act2autochess_m02).text, /每 1 秒再叠 1 层（最多 10 层），每层攻击速度 -5、移动速度 -5%/);
   assert.match(terrainFeature('deepsea', stages.act2autochess_m04).text, /每秒受到 40 点真实伤害，攻击速度 -60，移动速度降为 60%/);
   for (const st of Object.values(stages)) for (const f of stageFeatures(st)) assert.ok(f.name && f.text && !/undefined|NaN/.test(f.text), `${st.id} ${f.id}`);
 });
