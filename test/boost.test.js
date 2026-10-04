@@ -1,4 +1,4 @@
-// The 爽玩 box (SP_BOOST): room.boost in a lobby room, shown on the seat, carried into the match's seats.
+// The 轮回之终末 box (SP_BOOST): room.boost in a lobby room, shown on the seat, carried into the match's seats.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer } from '../server/index.js';
@@ -16,7 +16,7 @@ test('SP_BOOST on: a player ticks the box in the room, everyone sees it, the mat
     const a = await connect(srv.port, 'A');
     assert.equal((await a.request({ t: 'room.create', mode: 'coop', difficulty: 'NORMAL' })).t, 'ok');
     const st = await a.waitFor('room.state');
-    assert.equal(st.boostable, true, 'the room offers the box');
+    assert.deepEqual(st.boostable, { funds: 4, shopLuck: 0.4 }, 'the room offers the box, with the numbers');
     const b = await connect(srv.port, 'B');
     assert.equal((await b.request({ t: 'room.join', code: st.code })).t, 'ok');
     assert.equal((await b.request({ t: 'room.boost', on: true })).t, 'ok');

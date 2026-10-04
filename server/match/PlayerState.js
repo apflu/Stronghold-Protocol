@@ -112,7 +112,7 @@ export class PlayerState {
     /** operator loadout (DESIGN §16): frozen { [baseChessId]: { skill, module } }, {} = every chess on its defaults */
     this.loadout = Object.freeze({});
     if (!this.isBot && seat.loadout) this.setLoadout(seat.loadout);
-    /** SP_BOOST: the 爽玩 numbers when this human ticked the box (Match.boost), else null */
+    /** SP_BOOST: the 轮回之终末 numbers when this human ticked the box (Match.boost), else null */
     this.boost = !this.isBot && seat.boost && m.boost ? m.boost : null;
     this.shop = { level: 1, upgradePrice: this.gd.upgradeBase(1) ?? 0, slots: [], frozen: false, freeRefreshes: 0 };
     /** reward offers queue (merge rewards, special refreshes): { tier, source, label, slots: [{ kind, id, price, sold }] } */
@@ -833,7 +833,7 @@ export class PlayerState {
   _rollChessSlot(i = 0) {
     const id = this.m.pool.roll(this.m.rngShop, { maxTier: this.shop.level });
     // the normal roll is always drawn first, so the shop rng stream (every player's rolls) is the same with or without it
-    // the lucky slot (AI assist / 爽玩 box): the first chess slot of a roll only
+    // the lucky slot (AI assist / 轮回之终末 box): the first chess slot of a roll only
     const lucky = i === 0 ? this._assistChessSlot() ?? this._boostChessSlot() : null;
     if (lucky) return lucky;
     return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
@@ -855,7 +855,7 @@ export class PlayerState {
   }
 
   /**
-   * SP_BOOST (爽玩 box): with probability boost.shopLuck the first chess slot of a roll is drawn like the AI assist's lucky
+   * SP_BOOST (轮回之终末 box): with probability boost.shopLuck the first chess slot of a roll is drawn like the AI assist's lucky
    * slot — among the player's own unmerged operators, leaving out those another alive player holds a pair of. Own rng
    * stream (Match.rngBoost). null = keep the normal roll.
    */
@@ -1500,7 +1500,7 @@ export class PlayerState {
     if (this.isBot && this.m.botAssist) { this.funds += this.m.botAssist.funds; this.dirty(); }
     // SP_BONUS_FUNDS (Match.bonusFunds): the solo human's practice coins, likewise outside stats.fundsGained
     if (!this.isBot && this.m.bonusFunds) { this.funds += this.m.bonusFunds; this.dirty(); }
-    // SP_BOOST (爽玩 box): likewise
+    // SP_BOOST (轮回之终末 box): likewise
     if (this.boost && this.boost.funds > 0) { this.funds += this.boost.funds; this.dirty(); }
     // temp is NOT wiped here: the last prep's deadline resolved what the player could act on (endPrep); what overflowed
     // after it (battle-result grants, SETTLE merges, returned equipment) is shown and usable in this prep (tempDue).

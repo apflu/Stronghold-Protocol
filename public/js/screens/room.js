@@ -136,7 +136,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot 
     <div class="seat__who">
       <span class="seat__name">${seat.name || '博士'}</span>
       ${isMe ? html`<span class="seat__you">你</span>` : null}
-      ${seat.boost ? html`<span class="seat__boost" title="每回合额外资金，商店首格有概率刷出已有干员">爽玩</span>` : null}
+      ${seat.boost ? html`<${Tooltip} text=${html`<${BoostTip} boost=${room.boostable} />`}><span class="seat__boost">轮回之终末</span><//>` : null}
     </div>
     <${MicroLabel}>${seat.isBot ? 'AUTONOMOUS UNIT' : `DOCTOR #${doctorNo(seat.playerId)}`}<//>
     <footer class="seat__foot">
@@ -151,6 +151,27 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot 
       <//>` : null}
     </footer>
   </article>`;
+}
+
+/** The lore line under the 轮回之终末 tooltip: one of these at random (picked once per tooltip mount). */
+export const BOOST_LORE = Object.freeze([
+  '没错，你能感受到心跳正在疯狂加速。',
+  '盲目摄入的渴望，终有一日会撑破心脏。',
+  '在这炽热而激烈的脉动中，与我融为一体吧。',
+  '明知终有一日会爆炸，我也甘愿见到那结局。',
+  '正如你渴望的那样，心跳将会愈发猛烈。',
+]);
+
+/** 轮回之终末 (SP_BOOST): the gain, the price (red), a lore line (grey). `boost` = room.state.boostable. */
+export function BoostTip({ boost }) {
+  const [lore] = useState(() => BOOST_LORE[Math.floor(Math.random() * BOOST_LORE.length)]);
+  const funds = boost?.funds ?? 4;
+  const luck = Math.round((boost?.shopLuck ?? 0.4) * 100);
+  return html`<div class="boost-tip">
+    <div class="boost-tip__up">每回合额外获得 ${funds} 资金；每次刷新，商店第一格有 ${luck}% 概率出现你已有、未合成的干员</div>
+    <div class="boost-tip__down">第 14 回合最终攻势开始时，若没有任何盟约达到 999 层，立即淘汰</div>
+    <div class="boost-tip__lore">${lore}</div>
+  </div>`;
 }
 
 function InviteBox({ code }) {
@@ -305,9 +326,9 @@ export function RoomScreen() {
         <div class="room-bar__status">${statusLine}</div>
       </div>
       <div class="room-bar__right">
-        ${room.boostable ? html`<label class="room-boost" title="每回合额外资金，商店首格有概率刷出你已有、未合成的干员（不抢别人已有一对的）。所有人可见。">
-          <input type="checkbox" checked=${myBoost} disabled=${!online || !facts.mine || busy === 'boost'} onChange=${toggleBoost} />爽玩
-        </label>` : null}
+        ${room.boostable ? html`<${Tooltip} text=${html`<${BoostTip} boost=${room.boostable} />`}><label class="room-boost">
+          <input type="checkbox" checked=${myBoost} disabled=${!online || !facts.mine || busy === 'boost'} onChange=${toggleBoost} />轮回之终末
+        </label><//>` : null}
         <${LoadoutButton} from="room" size="lg" class="room-loadout" />
         ${facts.isHost
           ? html`<${Tooltip} text=${facts.canStart ? null : '仍有博士未准备就绪'}>

@@ -78,7 +78,7 @@ export const LOBBY_DEFAULTS = Object.freeze({
   soloReconnectWindowMs: null, // a dropped solo run stays resumable this long (null = data singleReconnectTime, 24 h)
   membersCreateOnly: false, // SP_ACCESS=host: only sessions on an invited device (session.access) create rooms
   guestJoinMisses: 10,     // SP_ACCESS=host: wrong room codes a guest network may try per minute (code guessing)
-  boost: false,            // SP_BOOST: rooms offer the per-player 爽玩 box (room.boost; the match applies it, Match.boost)
+  boost: null,             // SP_BOOST ({ funds, shopLuck } | null): rooms offer the 轮回之终末 box (room.boost; Match.boost applies it)
 });
 
 /** Official `singleReconnectTime` (s) when the data lacks it (constData, research 01 §1). */
@@ -158,7 +158,7 @@ export class Room {
       seats: this.seats.map((s) => (s
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left, ...(s.boost ? { boost: true } : {}) }
         : null)),
-      ...(this.boostable ? { boostable: true } : {}),
+      ...(this.boostable ? { boostable: this.boostable } : {}),
     };
   }
 }
@@ -336,7 +336,7 @@ export class Lobby {
     if (!code) return fail(ERR.INTERNAL, 'no room code available');
     if (cur) this.removeMember(cur, session.playerId);
     const room = new Room(code, mode, difficulty, this.now());
-    room.boostable = !!this.opts.boost;
+    room.boostable = this.opts.boost ? { funds: this.opts.boost.funds, shopLuck: this.opts.boost.shopLuck } : null;
     room.ownerKey = key;
     room.seats[0] = this.humanSeat(0, session);
     room.hostId = session.playerId;
@@ -407,7 +407,7 @@ export class Lobby {
     return OK;
   }
 
-  /** room.boost (SP_BOOST): the player's 爽玩 box — kept on the session (the next rooms too), applied at the next start. */
+  /** room.boost (SP_BOOST): the player's 轮回之终末 box — kept on the session (the next rooms too), applied at the next start. */
   boost(session, { on }) {
     if (!this.opts.boost) return fail(ERR.BAD_MSG, 'boost is off on this server');
     const room = this.roomOf(session);

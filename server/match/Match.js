@@ -136,7 +136,7 @@
 //     human is left at all the match ends ('abandoned'); when nobody alive is left it ends as 'eliminated'.
 
 import { C2S, unitStatsEntry } from '../../shared/protocol.js';
-import { PHASE, ERR, EMOTES, EMOTE_COOLDOWN_MS, GEO, modeIdFor, layerGainRoom } from '../../shared/constants.js';
+import { PHASE, ERR, EMOTES, EMOTE_COOLDOWN_MS, GEO, modeIdFor, layerGainRoom, BOND_LAYER_CAP } from '../../shared/constants.js';
 import { Battle } from '../sim/Battle.js';
 import { DataSource } from '../sim/simdata.js';
 import { createRng, deriveSeed } from '../sim/rng.js';
@@ -176,7 +176,7 @@ export const BOT_ASSIST = Object.freeze({ funds: 2, shopLuck: 0.4, lateTierFrom:
 export const BOT_ASSIST_DIFFICULTIES = Object.freeze(['HARD', 'ABYSS']);
 /** SP_BOT_ASSIST → boolean. */
 /**
- * SP_BOOST (the per-player 爽玩 box of the room, seats[].boost): coins per round start and the chance that one chess slot
+ * SP_BOOST (the per-player 轮回之终末 box of the room, seats[].boost): coins per round start and the chance that one chess slot
  * of each shop roll comes from the player's own unmerged operators (as the AI assist's lucky slot, one slot only).
  */
 export const BOOST_DEFAULT = Object.freeze({ funds: 4, shopLuck: 0.4 });
@@ -322,7 +322,7 @@ export class Match {
     /** SP_BONUS_FUNDS: extra coins per round start for the solo human (PlayerState.startRound), or 0 */
     this.bonusFunds = this.isSolo && human && Number.isFinite(bonus) && bonus > 0 && (!bonusFor.length || bonusFor.includes(String(human.name ?? '').trim()))
       ? Math.min(bonus, 50) : 0;
-    /** SP_BOOST: the 爽玩 numbers for the seats that ticked the box (seats[].boost → PlayerState.boost), or null */
+    /** SP_BOOST: the 轮回之终末 numbers for the seats that ticked the box (seats[].boost → PlayerState.boost), or null */
     this.boost = opts.boost !== undefined ? (opts.boost && typeof opts.boost === 'object' ? Object.freeze({ ...BOOST_DEFAULT, ...opts.boost }) : parseBoost(opts.boost)) : parseBoost(env('SP_BOOST'));
     /** wall-clock ms per slice of a server-run normal / 联防 field (virtual time: at once) */
     this.headlessSliceMs = Number.isFinite(opts.headlessSliceMs) && opts.headlessSliceMs > 0 ? opts.headlessSliceMs : this.sched.virtual ? Infinity : HEADLESS_SLICE_MS;
@@ -356,7 +356,7 @@ export class Match {
     this.rngDraft = rng('draft');
     this.rngBots = rng('bots');
     this.rngMeta = rng('meta');
-    this.rngBoost = rng('boost'); // the 爽玩 lucky slot (its own stream: the others draw the same with or without it)
+    this.rngBoost = rng('boost'); // the 轮回之终末 lucky slot (its own stream: the others draw the same with or without it)
 
     /** @type {Map<string, PlayerState>} */
     this.players = new Map();
@@ -1774,13 +1774,36 @@ export class Match {
     for (const ps of alive) ps.endPrep();
     const r = this.round;
     if (r === this.gd.bossRound) {
-      this.hiddenLayerSum = alive.reduce((s, p) => s + p.activatedLayers(), 0);
+      if (this._boostReckoning()) return; // nobody left
+      this.hiddenLayerSum = this.alivePlayers().reduce((s, p) => s + p.activatedLayers(), 0);
       this.startFinalAssault(false);
     } else if (r === this.gd.hiddenRound) {
       this.startFinalAssault(true);
     } else {
       this.startCombat();
     }
+  }
+
+  /**
+   * SP_BOOST (轮回之终末): when the last prep ends, a seat that ticked the box with no bond at BOND_LAYER_CAP (999) is
+   * eliminated before the Final Assault (layers do not grow there). The boss pairs are planned again for the players
+   * left. Returns true when nobody is left (the match has ended).
+   */
+  _boostReckoning() {
+    const doomed = this.alivePlayers().filter((ps) => ps.boost && !Object.values(ps.layers || {}).some((v) => v >= BOND_LAYER_CAP));
+    if (!doomed.length) return false;
+    for (const ps of doomed) {
+      ps.lp = 0;
+      ps.eliminate(this.round);
+      this.toast(ps, 'error', '轮回之终末：没有盟约达到 999 层，心脏停止了跳动');
+      this.tickerText(`${ps.name}博士的心跳停止了`, FLOW_TICKER_PRIORITY);
+      this.log.info(`[boost] ${ps.name} eliminated at the last prep (no bond at ${BOND_LAYER_CAP})`);
+    }
+    if (this.teamLp != null) this._syncTeamLp();
+    if (!this.alivePlayers().length) { this.markPublic(); this.finish({ victory: false, reason: 'eliminated' }); return true; }
+    if (this.bossWaves) { this._planBossWaves(); for (const p of this.alivePlayers()) p.recompute(); }
+    this.markPublic();
+    return false;
   }
 
   // ===================================================================================================

@@ -517,8 +517,8 @@ export async function startServer(opts = {}) {
   for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs']) {
     if (opts[k] != null) lobbyOptions[k] = opts[k];
   }
-  // SP_BOOST: rooms offer the 爽玩 box (the match reads the same variable for its numbers, server/match/Match.js)
-  lobbyOptions.boost = opts.boost != null ? !!opts.boost : parseBoost(process.env.SP_BOOST) != null;
+  // SP_BOOST: rooms offer the 轮回之终末 box (the match reads the same variable for its numbers, server/match/Match.js)
+  lobbyOptions.boost = opts.boost != null ? (opts.boost === true ? parseBoost('1') : parseBoost(opts.boost)) : parseBoost(process.env.SP_BOOST);
   // the host's event log (docs/DEPLOY.md「事件日志」; tools/logs.mjs reads it)
   const logDir = opts.logDir ?? process.env.SP_LOG_DIR ?? '';
   if (logDir && !eventLog.enabled) {

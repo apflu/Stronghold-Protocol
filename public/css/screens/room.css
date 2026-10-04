@@ -235,6 +235,9 @@
 .room-bar__right { justify-self: end; display: flex; align-items: center; gap: .16rem; }
 .room-boost { display: flex; align-items: center; gap: .06rem; font-size: .15rem; cursor: pointer; user-select: none; }
 .room-boost input { width: .18rem; height: .18rem; accent-color: var(--amber); cursor: pointer; }
+.boost-tip { display: grid; gap: .05rem; max-width: 3.6rem; text-align: left; }
+.boost-tip__down { color: var(--red-premium); }
+.boost-tip__lore { color: var(--text-lo); font-style: italic; }
 .room-bar__status { font-size: .15rem; }
 .room-bar__status .icon { width: .18rem; height: .18rem; margin-right: .05rem; vertical-align: -.03rem; }
 

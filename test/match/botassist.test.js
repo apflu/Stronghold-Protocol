@@ -244,7 +244,7 @@ test('SP_BOOST parsing: on = 4 coins and a 40% lucky first slot; "<funds>,<luck>
   assert.deepEqual(parseBoost('999,7'), { funds: 50, shopLuck: 1 });
 });
 
-test('爽玩 box: only the seats that ticked it get the coins (outside stats) and a lucky first slot', () => {
+test('轮回之终末 box: only the seats that ticked it get the coins (outside stats) and a lucky first slot', () => {
   const h = makeMatch({ mode: 'coop', difficulty: 'ABYSS', humans: 2, bots: 0, fake: true, boost: '1', boostSeats: ['p_0'] }).start().toPrep(1);
   const m = h.m;
   const [on, off] = [h.ps('p_0'), h.ps('p_1')];
@@ -269,4 +269,33 @@ test('爽玩 box: only the seats that ticked it get the coins (outside stats) an
   const plain = makeMatch({ mode: 'coop', humans: 1, fake: true, boost: null, boostSeats: ['p_0'] });
   assert.equal(plain.ps('p_0').boost, null, 'SP_BOOST off: the box does nothing');
   plain.m.dispose();
+});
+
+test('轮回之终末: at the end of the last prep a boxed seat with no bond at 999 is eliminated; 999 or no box survives', () => {
+  for (const capped of [false, true]) {
+    const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 3, bots: 0, fake: true, boost: '1', boostSeats: ['p_0', 'p_1'] }).autoHumans();
+    h.start().toPrep(h.m.gd.bossRound);
+    const m = h.m;
+    const [a, b, c] = ['p_0', 'p_1', 'p_2'].map((id) => h.ps(id));
+    for (const ps of [a, b, c]) assert.ok(ps.alive, `${ps.playerId} reached the last prep`);
+    a.layers = { ...a.layers, siracusaShip: capped ? 999 : 998 };
+    b.layers = { ...b.layers, siracusaShip: 999 };
+    a.recompute(); b.recompute();
+    m.endPrep();
+    assert.equal(a.alive, capped, capped ? 'a bond at 999: survives' : '998 is not enough');
+    assert.ok(b.alive, 'a bond at 999');
+    assert.ok(c.alive, 'no box, no reckoning');
+    if (!capped) assert.equal(a.eliminatedRound, m.gd.bossRound);
+    checkInvariants(m);
+    m.dispose();
+  }
+});
+
+test('轮回之终末: a solo boxed player without 999 ends the run before the Final Assault', () => {
+  const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', humans: 1, fake: true, boost: '1', boostSeats: ['p_0'] }).autoHumans();
+  h.start().toPrep(h.m.gd.bossRound);
+  h.m.endPrep();
+  assert.equal(h.ps('p_0').alive, false);
+  assert.ok(h.ended, 'the match ended');
+  h.m.dispose();
 });
