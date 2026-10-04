@@ -1133,6 +1133,8 @@ function ironClaw(bb, raw, def) {
           if (p < 1) { accs.set(a.id, p); continue; }
           accs.set(a.id, p - 1);
           a.lastAttackAt = battle.time; // hitting it is attacking (突袭's idle timer, "未进行攻击" checks)
+          // the attack the players see: the operator's attack clip turned towards it (and its projectile, ranged)
+          battle._ev(['atk', a.id, unit.id, a.profile?._fortressMelee ? 'none' : (a.profile?.projectile || 'none')]);
           unit.mem.clawSp = Math.min(cost, unit.mem.clawSp + 1);
           if (a.def?.subProfessionId === 'craftsman' || a.def?.raw?.subProfessionId === 'craftsman') battle.heal(a, unit, unit.s.maxHp * heal);
         }
