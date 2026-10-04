@@ -336,7 +336,7 @@ export class Lobby {
     if (!code) return fail(ERR.INTERNAL, 'no room code available');
     if (cur) this.removeMember(cur, session.playerId);
     const room = new Room(code, mode, difficulty, this.now());
-    room.boostable = this.opts.boost ? { funds: this.opts.boost.funds, shopLuck: this.opts.boost.shopLuck } : null;
+    room.boostable = this.opts.boost ? { funds: this.opts.boost.funds } : null; // the lucky slot stays unsaid
     room.ownerKey = key;
     room.seats[0] = this.humanSeat(0, session);
     room.hostId = session.playerId;

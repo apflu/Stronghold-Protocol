@@ -276,7 +276,7 @@ flowing), then `botPrepEnd` (the rehearsed layout when it won, temp, Ready). The
 default layout stays). Virtual time runs it in one go (same decisions). Tests default rehearsal to 0
 (`test/match/harness.js`); `tools/matchrun.mjs --rehearsal N` sets it.
 **轮回之终末 box (`SP_BOOST`, `Match.BOOST_DEFAULT`):** off by default; on, rooms offer a per-player box (`room.boost`,
-shown on the seat to everyone; `room.state.boostable` carries the numbers for the tooltip). A seat that ticked it takes
+shown on the seat to everyone; `room.state.boostable` carries the coins for the tooltip — the lucky slot is never shown to players). A seat that ticked it takes
 +4 coins at every round start (outside `stats.fundsGained`) and the same lucky first slot as the assist below
 (probability 0.4, own unmerged bases nobody else holds a pair of, its own `rngBoost` stream). The price: when the last
 prep (R14) ends, a boxed seat with no bond at 999 layers is eliminated before the Final Assault (`Match._boostReckoning`;

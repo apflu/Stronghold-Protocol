@@ -162,13 +162,13 @@ export const BOOST_LORE = Object.freeze([
   '正如你渴望的那样，心跳将会愈发猛烈。',
 ]);
 
-/** 轮回之终末 (SP_BOOST): the gain, the price (red), a lore line (grey). `boost` = room.state.boostable. */
+/** 轮回之终末 (SP_BOOST): the gain, the price (red), a lore line (grey). `boost` = room.state.boostable. The lucky shop
+ * slot is left unsaid on purpose (players just feel lucky). */
 export function BoostTip({ boost }) {
   const [lore] = useState(() => BOOST_LORE[Math.floor(Math.random() * BOOST_LORE.length)]);
   const funds = boost?.funds ?? 4;
-  const luck = Math.round((boost?.shopLuck ?? 0.4) * 100);
   return html`<div class="boost-tip">
-    <div class="boost-tip__up">每回合额外获得 ${funds} 资金；每次刷新，商店第一格有 ${luck}% 概率出现你已有、未合成的干员</div>
+    <div class="boost-tip__up">每回合额外获得 ${funds} 资金</div>
     <div class="boost-tip__down">第 14 回合最终攻势开始时，若没有任何盟约达到 999 层，立即淘汰</div>
     <div class="boost-tip__lore">${lore}</div>
   </div>`;
