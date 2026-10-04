@@ -10,7 +10,8 @@
 // buying in the shop (user playtest #4 item 2 — extra enemies, items and tactics were picked by a slip of the finger;
 // research 09 §5 EventOnFirstClick → EventOnConfirm): the first tap on an available card selects it (it lifts with a
 // gold frame and a 确认选择 · 再次点击 strip; the header shows 确认选择), a second tap on the same card — or 确认选择 —
-// sends g.choice; a tap on another card moves the selection, a tap elsewhere or Esc drops it. Cards are buttons (Tab /
+// sends g.choice; a tap on another card moves the selection, a tap elsewhere or Esc drops it. The selection is reported
+// (g.choiceFocus): a turn that runs out takes the selected card, like the strategy draft's highlighted band. Cards are buttons (Tab /
 // Enter work the same way). While the pick is in flight the card shows a "选择中" strip with a sweeping bar (never a
 // spinner over its text — user playtest #3 item 9), dropped as soon as the pick shows in m.public (spBusy itself resets
 // when the request settles, ≤ 8 s, or the phase moves on). Untimed drafts (solo, a single-human match: sp.untimed) show
@@ -125,9 +126,11 @@ export function armedCard(armed, sp, o) {
  * @param {{ pub:any, sp:any, myId:string, solo:boolean, onPick:(idx:number)=>void, busyIdx?:number|null, total?:number|null }} props
  */
 export function ChoiceOverlay(props) {
-  const { sp, myId, solo, busyIdx = null, onPick } = props;
+  const { sp, myId, solo, busyIdx = null, onPick, onFocus } = props;
   const [sel, setSel] = useState(null);
   const armed = armedCard(sel, sp, { myId, solo, busyIdx });
+  // the server learns the selected card: a turn that runs out takes it (instead of a random one)
+  useEffect(() => { if (typeof onFocus === 'function') onFocus(armed); }, [armed]);
   // a selection whose card cannot be picked any more (taken, the turn moved on, a pick in flight) is dropped
   useEffect(() => { if (sel != null && armed == null) setSel(null); }, [sel, armed]);
   useEffect(() => {
