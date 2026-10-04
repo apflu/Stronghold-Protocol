@@ -35,7 +35,7 @@
    "enemyIcon": 8779450
   },
   "license": "All game assets (c) Hypergryph / Yostar. Non-commercial fan project only; credit required; do not redistribute bulk archives.",
-  "picks": "甄选干员 (DESIGN §16.1): 白铁, 阿斯卡纶 and 白铁's three devices were added later (the 原型干员 were already listed), probed by the patterns below (2026-10-05)"
+  "picks": "甄选干员 (DESIGN §16.1): 白铁, 阿斯卡纶, 贝洛内, 丰川祥子 and 白铁's three devices were added later (the 原型干员 were already listed), probed by the patterns below (2026-10-05)"
  },
  "operators": {
   "char_498_inside": {
@@ -17594,6 +17594,234 @@
    },
    "sfx": {},
    "subProfessionIcon": "https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/arts/ui/subprofessionicon/sub_stalker_icon.png"
+  },
+  "char_4037_demetr": {
+   "name": "贝洛内",
+   "rarity": "TIER_6",
+   "profession": "WARRIOR",
+   "subProfessionId": "fighter",
+   "nationId": "siracusa",
+   "chess": [
+    {
+     "chessId": "chess_pick5_char_4037_demetr_a",
+     "chessLevel": 5,
+     "chessType": "DIY",
+     "defaultSkillIndex": 2,
+     "evolvePhase": "PHASE_2"
+    },
+    {
+     "chessId": "chess_pick6_char_4037_demetr_a",
+     "chessLevel": 6,
+     "chessType": "DIY",
+     "defaultSkillIndex": 2,
+     "evolvePhase": "PHASE_2"
+    }
+   ],
+   "avatar": {
+    "e0e1": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/char_4037_demetr.png",
+     "bytes": 68134
+    },
+    "e2": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/char_4037_demetr_2.png",
+     "bytes": 67563
+    }
+   },
+   "portrait": {
+    "e0e1": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/portrait/char_4037_demetr_1.png",
+     "bytes": 128070
+    },
+    "e2": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/portrait/char_4037_demetr_2.png",
+     "bytes": 130160
+    }
+   },
+   "fullArt": {
+    "e0e1": null,
+    "e2": null
+   },
+   "skills": [
+    {
+     "index": 0,
+     "skillId": "skchr_demetr_1",
+     "iconId": "skchr_demetr_1",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_demetr_1.png",
+      "bytes": 21422
+     },
+     "sfx": {}
+    },
+    {
+     "index": 1,
+     "skillId": "skchr_demetr_2",
+     "iconId": "skchr_demetr_2",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_demetr_2.png",
+      "bytes": 28123
+     },
+     "sfx": {}
+    },
+    {
+     "index": 2,
+     "skillId": "skchr_demetr_3",
+     "iconId": "skchr_demetr_3",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_demetr_3.png",
+      "bytes": 26689
+     },
+     "sfx": {}
+    }
+   ],
+   "battleSpine": {
+    "front": {
+     "skel": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4037_demetr/char_4037_demetr/Front/char_4037_demetr.skel",
+      "bytes": 810123
+     },
+     "atlas": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4037_demetr/char_4037_demetr/Front/char_4037_demetr.atlas",
+      "bytes": 2773
+     },
+     "png": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4037_demetr/char_4037_demetr/Front/char_4037_demetr.png",
+      "bytes": 271644
+     },
+     "jsdelivrSkel": "https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/char_4037_demetr/char_4037_demetr/Front/char_4037_demetr.skel"
+    },
+    "back": {
+     "skel": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4037_demetr/char_4037_demetr/Back/char_4037_demetr.skel",
+      "bytes": 416634
+     },
+     "atlas": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4037_demetr/char_4037_demetr/Back/char_4037_demetr.atlas",
+      "bytes": 1435
+     },
+     "png": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4037_demetr/char_4037_demetr/Back/char_4037_demetr.png",
+      "bytes": 194936
+     },
+     "jsdelivrSkel": "https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/char_4037_demetr/char_4037_demetr/Back/char_4037_demetr.skel"
+    },
+    "note": "甄选干员 (DESIGN §16.1): probed by URL pattern"
+   },
+   "sfx": {},
+   "subProfessionIcon": "https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/arts/ui/subprofessionicon/sub_fighter_icon.png"
+  },
+  "char_4182_oblvns": {
+   "name": "丰川祥子",
+   "rarity": "TIER_6",
+   "profession": "WARRIOR",
+   "subProfessionId": "lord",
+   "nationId": null,
+   "chess": [
+    {
+     "chessId": "chess_pick5_char_4182_oblvns_a",
+     "chessLevel": 5,
+     "chessType": "DIY",
+     "defaultSkillIndex": 2,
+     "evolvePhase": "PHASE_2"
+    },
+    {
+     "chessId": "chess_pick6_char_4182_oblvns_a",
+     "chessLevel": 6,
+     "chessType": "DIY",
+     "defaultSkillIndex": 2,
+     "evolvePhase": "PHASE_2"
+    }
+   ],
+   "avatar": {
+    "e0e1": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/char_4182_oblvns.png",
+     "bytes": 63083
+    },
+    "e2": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/char_4182_oblvns_2.png",
+     "bytes": 67747
+    }
+   },
+   "portrait": {
+    "e0e1": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/portrait/char_4182_oblvns_1.png",
+     "bytes": 122223
+    },
+    "e2": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/portrait/char_4182_oblvns_2.png",
+     "bytes": 127540
+    }
+   },
+   "fullArt": {
+    "e0e1": null,
+    "e2": null
+   },
+   "skills": [
+    {
+     "index": 0,
+     "skillId": "skchr_oblvns_1",
+     "iconId": "skchr_oblvns_1",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_oblvns_1.png",
+      "bytes": 33325
+     },
+     "sfx": {}
+    },
+    {
+     "index": 1,
+     "skillId": "skchr_oblvns_2",
+     "iconId": "skchr_oblvns_2",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_oblvns_2.png",
+      "bytes": 33324
+     },
+     "sfx": {}
+    },
+    {
+     "index": 2,
+     "skillId": "skchr_oblvns_3",
+     "iconId": "skchr_oblvns_3",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_oblvns_3.png",
+      "bytes": 34790
+     },
+     "sfx": {}
+    }
+   ],
+   "battleSpine": {
+    "front": {
+     "skel": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4182_oblvns/char_4182_oblvns/Front/char_4182_oblvns.skel",
+      "bytes": 1071707
+     },
+     "atlas": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4182_oblvns/char_4182_oblvns/Front/char_4182_oblvns.atlas",
+      "bytes": 3155
+     },
+     "png": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4182_oblvns/char_4182_oblvns/Front/char_4182_oblvns.png",
+      "bytes": 332918
+     },
+     "jsdelivrSkel": "https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/char_4182_oblvns/char_4182_oblvns/Front/char_4182_oblvns.skel"
+    },
+    "back": {
+     "skel": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4182_oblvns/char_4182_oblvns/Back/char_4182_oblvns.skel",
+      "bytes": 1002567
+     },
+     "atlas": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4182_oblvns/char_4182_oblvns/Back/char_4182_oblvns.atlas",
+      "bytes": 3155
+     },
+     "png": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4182_oblvns/char_4182_oblvns/Back/char_4182_oblvns.png",
+      "bytes": 332918
+     },
+     "jsdelivrSkel": "https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/char_4182_oblvns/char_4182_oblvns/Back/char_4182_oblvns.skel"
+    },
+    "note": "甄选干员 (DESIGN §16.1): probed by URL pattern"
+   },
+   "sfx": {},
+   "subProfessionIcon": "https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/arts/ui/subprofessionicon/sub_lord_icon.png"
   }
  },
  "tokens": {

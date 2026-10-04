@@ -254,3 +254,148 @@ test('白铁 节约经费 (elite, module CRA-X): +0.2 SP/s while a device of his
   assert.ok(back >= 2, `came back ${back}×`);
   clean(h);
 });
+
+// ---- 贝洛内 ----------------------------------------------------------------------------------------------------------
+
+const BEL = 'chess_pick6_char_4037_demetr_a', BEL_E = 'chess_pick6_char_4037_demetr_b';
+
+test('贝洛内 家族手段: each attack stacks 【手段】 (≤5, DEF × (1 − 8 % × n)); lower target HP ⇒ more damage (+42 % at ≤20 %)', () => {
+  const h = makeBattle({
+    defs: { enemies: { enemy_dummy: dummy('enemy_dummy', { def: 500 }) } },
+    units: [{ chessId: BEL, row: 10, col: 5, skillIndex: 1 }],
+    enemies: [{ key: 'enemy_dummy', pos: [10, 6] }], hooks: ['hit'], captureNoisy: true, autoFinish: false, timeLimit: 60,
+  });
+  const u = h.unit(BEL), t0 = tal(u, 0);
+  h.step();
+  u.skill.sp = 0;
+  const e = h.enemy('enemy_dummy');
+  assert.ok(h.runUntil(() => (u.mem.means.get(e.id)?.n ?? 0) >= t0['attack@limited_stack_cnt'], 30));
+  h.run(2);
+  assert.equal(u.mem.means.get(e.id).n, t0['attack@limited_stack_cnt'], 'capped outside S2');
+  approx(e.s.def, e.base.def * (1 + t0['attack@def'] * t0['attack@limited_stack_cnt']), 1e-6, 'DEF × (1 − 8 % × 5)');
+  // damage bonus by the target's HP ratio
+  const mulAt = (ratio) => { e.hp = e.s.maxHp * ratio; const before = h.hooksOf('hit').length; h.runUntil(() => h.hooksOf('hit').slice(before).some((c) => c.source === u), 5); return h.hooksOf('hit').slice(before).find((c) => c.source === u).dmg.mul; };
+  const full = mulAt(1), low = mulAt(0.1), mid = mulAt(0.6);
+  approx(low / full, 1 + t0.max_add_on_scale, 1e-6, '+42 % at ≤ 20 %');
+  approx(mid / full, 1 + t0.max_add_on_scale * 0.5, 1e-6, 'linear: half way at 60 %');
+  clean(h);
+});
+
+test('贝洛内 S2 军师的手段: 3 targets, marks up to 8 and a full mark keeps the target 停顿; back to 5 after the skill', () => {
+  const h = makeBattle({
+    defs: { enemies: { enemy_dummy: dummy() } },
+    units: [{ chessId: BEL, row: 10, col: 5, skillIndex: 1 }],
+    enemies: [{ key: 'enemy_dummy', pos: [10, 6] }, { key: 'enemy_dummy', pos: [10, 7] }, { key: 'enemy_dummy', pos: [11, 6] }],
+    hooks: ['damaged'], captureNoisy: true, autoFinish: false, timeLimit: 60,
+  });
+  const u = h.unit(BEL), t0 = tal(u, 0);
+  h.step();
+  assert.ok(u.skill.activate('test', { free: true }));
+  const [a] = h.b.enemies;
+  assert.ok(h.runUntil(() => (u.mem.means.get(a.id)?.n ?? 0) >= t0['attack@s2_limited_stack_cnt'], 15), 'eight stacks in S2');
+  assert.ok(a.findBuff('sluggish'), '停顿 at a full mark');
+  const hit = new Set(h.hooksOf('damaged').filter((c) => c.source === u && c.dmg?.isAttack).map((c) => c.target.id));
+  assert.equal(hit.size, 3, 'three targets');
+  assert.ok(h.runUntil(() => !u.skill.active, 30));
+  h.run(0.2);
+  assert.equal(u.mem.means.get(a.id).n, t0['attack@limited_stack_cnt'], 'back to the normal cap');
+  assert.ok(!a.findBuff('sluggish') || a.findBuff('sluggish').source !== u, 'the 停顿 ends with it');
+  clean(h);
+});
+
+test('贝洛内 街头直觉: 80 % dodge on deploy, −2 % per second, 40 % after 20 s', () => {
+  const h = makeBattle({ units: [{ chessId: BEL, row: 10, col: 5 }], autoFinish: false, timeLimit: 60 });
+  const u = h.unit(BEL), t1 = tal(u, 1);
+  h.step();
+  approx(u.s.dodgePhys, t1.init_prob, 1e-6);
+  h.run(5.05);
+  approx(u.s.dodgeArts, t1.init_prob - t1.dec_prob * 5, 1e-6);
+  h.run(20);
+  approx(u.s.dodgePhys, t1.init_prob - t1.dec_prob * t1.trig_cnt, 1e-6);
+  clean(h);
+});
+
+test('贝洛内 S3 清算: moves onto a nearby ground enemy, ATK up; a fatal hit ends the skill; home at the end', () => {
+  const h = makeBattle({
+    defs: { enemies: { enemy_dummy: dummy() } },
+    units: [{ chessId: BEL_E, row: 10, col: 4 }],
+    enemies: [{ key: 'enemy_dummy', pos: [10, 6] }], hooks: ['skillEnd'], autoFinish: false, timeLimit: 90,
+  });
+  const u = h.unit(BEL_E);
+  h.step();
+  const atk0 = u.s.atk;
+  assert.ok(u.skill.activate('test', { free: true }));
+  assert.deepEqual([u.tileR, u.tileC], [10, 6], 'on the enemy tile');
+  approx(u.s.atk, atk0 * (1 + bbOf(u)['attack@demetr_s3[bonus].atk']), 1e-6, 'ATK');
+  h.b.dealDamage(null, u, { amount: u.s.maxHp * 5, type: 'true' });
+  assert.ok(u.alive, 'not knocked out');
+  assert.ok(!u.skill.active, 'the skill ended instead');
+  assert.deepEqual([u.tileR, u.tileC], [10, 4], 'back home');
+  clean(h);
+});
+
+// ---- 丰川祥子 ----------------------------------------------------------------------------------------------------------
+
+const SAKI = 'chess_pick6_char_4182_oblvns_a', SAKI_E = 'chess_pick6_char_4182_oblvns_b';
+
+test('丰川祥子 颂乐音符: her notes ignore DEF / RES per note (≤ max_cnt); 毋畏遗忘: Fever per damage, operators in range ASPD +', () => {
+  const h = makeBattle({
+    defs: { enemies: { enemy_dummy: dummy('enemy_dummy', { def: 500 }) } },
+    units: [{ chessId: SAKI, row: 10, col: 4, skillIndex: 1 }, { chessId: ALLY, row: 10, col: 5 }],
+    enemies: [{ key: 'enemy_dummy', pos: [10, 7] }], hooks: ['hit'], captureNoisy: true, autoFinish: false, timeLimit: 60,
+  });
+  const u = h.unit(SAKI), a = h.unit(ALLY), t0 = tal(u, 0), t1 = tal(u, 1);
+  h.step();
+  h.run(0.3);
+  assert.ok(a.buffs.some((b) => b.key === `oblvns:t2:${u.id}`), 'ASPD aura on the operator in her range');
+  assert.ok(h.runUntil(() => h.hooksOf('hit').filter((c) => c.source === u).length >= 6, 30));
+  const hits = h.hooksOf('hit').filter((c) => c.source === u);
+  const last = hits.at(-1);
+  assert.ok(last.dmg.defIgnorePct > t0.def_penetrate_ratio - 1e-9, 'at least one note');
+  assert.ok(last.dmg.defIgnorePct <= t0.def_penetrate_ratio * t0.max_cnt + 1e-9, 'capped');
+  approx(last.dmg.resIgnorePct / last.dmg.defIgnorePct, t0.magic_resist_penetrate_ratio / t0.def_penetrate_ratio, 1e-6);
+  assert.equal(u.mem.fever, hits.length * t1.cnt, 'Fever +cnt per damage instance');
+  clean(h);
+});
+
+test('丰川祥子 S1 新月的苏醒: 8 arts notes descending; a cast at 450 Fever starts Fever — every attack then plays the 8 notes', () => {
+  const h = makeBattle({
+    defs: { enemies: { enemy_dummy: dummy() } },
+    units: [{ chessId: SAKI, row: 10, col: 4, skillIndex: 0 }],
+    enemies: [{ key: 'enemy_dummy', pos: [10, 6] }], hooks: ['damaged'], captureNoisy: true, autoFinish: false, timeLimit: 60,
+  });
+  const u = h.unit(SAKI);
+  h.step();
+  const notes = () => h.hooksOf('damaged').filter((c) => c.source === u && (c.dmg?.tags || []).includes('note'));
+  u.mem.fever = 0;
+  assert.ok(u.skill.activate('test', { free: true }));
+  assert.equal(notes().length, 8, 'eight notes');
+  assert.ok(notes().every((c) => c.type === 'arts'));
+  approx(notes()[0].dmg.amount, u.s.atk * bbOf(u).atk_scale, 1e-6, 'first note');
+  approx(notes()[7].dmg.amount, u.s.atk * bbOf(u).atk_scale_8, 1e-6, 'last note');
+  u.mem.fever = 450;
+  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(u.mem.feverUntil > h.b.time + 19, 'Fever for 20 s');
+  assert.equal(u.mem.fever, 0, 'the gauge is spent');
+  const n0 = notes().length;
+  h.run(5);
+  assert.ok(notes().length >= n0 + 16, `notes on every attack in Fever (${notes().length - n0})`);
+  clean(h);
+});
+
+test('丰川祥子 S3 残月的余响: two phys notes on the highest-RES enemy, two arts notes on the highest-DEF one', () => {
+  const h = makeBattle({
+    defs: { enemies: { enemy_res: dummy('enemy_res', { res: 60, def: 0 }), enemy_def: dummy('enemy_def', { def: 900, res: 0 }) } },
+    units: [{ chessId: SAKI_E, row: 10, col: 4 }],
+    enemies: [{ key: 'enemy_res', pos: [10, 6] }, { key: 'enemy_def', pos: [10, 7] }], hooks: ['damaged'], captureNoisy: true, autoFinish: false, timeLimit: 60,
+  });
+  const u = h.unit(SAKI_E);
+  h.step();
+  assert.ok(u.skill.activate('test', { free: true }));
+  const res = h.enemy('enemy_res'), dfn = h.enemy('enemy_def');
+  const by = (e, type) => h.hooksOf('damaged').filter((c) => c.source === u && c.target === e && c.type === type && c.dmg?.isSkill);
+  assert.ok(h.runUntil(() => by(res, 'phys').length >= 2 && by(dfn, 'arts').length >= 2, 10));
+  assert.equal(by(res, 'arts').length, 0, 'no arts on the high-RES one');
+  assert.equal(by(dfn, 'phys').length, 0, 'no phys on the high-DEF one');
+  clean(h);
+});

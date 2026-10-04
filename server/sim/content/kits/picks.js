@@ -18,8 +18,25 @@
 //            节约经费's recovery puts a device that leaves within his 8 surrounding tiles back in stock (prob); S1's end
 //            destroys every S1 device on the field (they may come back the same way). The devices' own rules are
 //            tokens.js (白铁™多功能平台 / 铁钳号·原型机).
+//  贝洛内    【手段】: one mark per enemy for every 贝洛内 (the strongest DEF cut wins: a shared buff key keeping the highest),
+//            stacks refreshed by each of her attack hits (before the damage), DEF × (1 − 8 % × stacks) (final); outside her
+//            S2 the stacks fall back to the normal cap at once (the 0.1 s "natural update"); the HP-based damage bonus is on
+//            every damage she deals. 清算: the target is a ground enemy within DEMETR_DASH_RADIUS tiles [ASSUMED "自身周围
+//            一定范围"] standing on deployable ground nobody else holds; she 移动s onto its tile (moveRedeploy) and back home at
+//            the end (stays where she is when home is taken) — no 牵绊 marker [ASSUMED: nothing else redeploys there
+//            mid-battle]; the 40 % proc raises that attack to prob_atk_scale × ATK.
+//  丰川祥子  音符 are her attacks (no free flight / homing model): every attack adds a note living SAKIKO_NOTE_LIFE s
+//            [ASSUMED], at most max_cnt count for 颂乐音符's DEF / RES ignore on her own damage (the only Ave Mujica member
+//            in the remake); no 持续攻击 without a target. Fever (term: 450 points, a skill cast then runs the skill for 20 s):
+//            +cnt per damage instance on an enemy (dodged ones too); the cast that finds 450 starts Fever — S1 then fires its
+//            8 notes on every attack, S2 hits twice, S3 stays up while it lasts; a fatal hit during Fever leaves her at 1 HP and
+//            she leaves when Fever ends. S1's 8 notes go to the enemies in range nearest first, round-robin; S2 switches tone
+//            at every cast (piano first) [ASSUMED: no manual switch], piano notes do not pierce; S3: two phys notes on the
+//            highest-RES enemy in range, two arts notes on the highest-DEF one.
 
-import { bodyInKeys } from '../../body.js';
+import { bodyInKeys, bodyOnTile } from '../../body.js';
+import { frontOf } from '../../dir.js';
+import { COLS } from '../../constants.js';
 import { releaseSkillSummon, TOKEN_IDS } from '../tokens.js';
 
 const AURA = 0.2;          // aura refresh period (s)
@@ -245,9 +262,266 @@ function ironmn(bb, chess, def) {
   };
 }
 
+// ===== 贝洛内 (fighter) S3 清算 — ATK / ASPD up, 40 % of attacks at 150 %; dashes onto a ground enemy's tile (re-targets
+//       when an elite / leader she hit falls or after 1 s without attacking), a fatal hit ends the skill instead, home at
+//       the end. S1 家主的余裕 (next attack twice at atk_scale; both hits mark); S2 军师的手段 (skill range, ASPD, 3 targets at
+//       attack@atk_scale; marks up to 8, a full mark keeps the target 停顿). Trait (elite): ASPD +10 above 50 % HP.
+//       Talents 家族手段 / 街头直觉 (80 % dodge on deploy, −2 % per second for 20 s, then 40 %).
+const DEMETR_MARK = 'demetr:means';
+/** 清算's search radius around her (tiles) [ASSUMED: "自身周围一定范围"]. */
+export const DEMETR_DASH_RADIUS = 2.5;
+function bellone(bb, chess, def) {
+  const t0 = tbb(def, 0), t1 = tbb(def, 1), tb = def.traitBb || {};
+  const S2 = isSel(def, 'skchr_demetr_2'), S3 = isSel(def, 'skchr_demetr_3');
+  const g = grid(def.skill?.rangeGrid);
+  const cut = Math.abs(num(t0['attack@def'], -0.08));
+  const cap = Math.max(1, Math.floor(num(t0['attack@limited_stack_cnt'], 5)));
+  const capS2 = Math.max(cap, Math.floor(num(t0['attack@s2_limited_stack_cnt'], 8)));
+  const markDur = num(t0['attack@def_dec_duration'], 10);
+  const hiR = num(t0.min_hp_ratio, 1), loR = num(t0.max_hp_ratio, 0.2), maxAdd = num(t0.max_add_on_scale, 0.42);
+  const s3 = (k, d) => num(bb[`attack@demetr_s3[bonus].${k}`], d);
+  /** Her 【手段】 on an enemy: stacks n until t (unit.mem.means: enemy id → { n, until }). */
+  const applyMark = (battle, unit, e, n, until) => {
+    const mods = { defMul: Math.max(0, 1 - cut * n) };
+    const cur = e.findBuff(DEMETR_MARK);
+    if (cur && cur.source !== unit && (cur.mods?.defMul ?? 1) < mods.defMul) return; // a stronger 贝洛内 mark wins
+    battle.addBuff(e, { key: DEMETR_MARK, mods, duration: Math.max(0.05, until - battle.time), source: unit, visible: true });
+  };
+  const freeGround = (battle, unit, r, c) => battle.grid.inRect(r, c) && battle.grid.canStand(r, c) && !battle.grid.isObstacle(r, c)
+    && !battle.isReservedTile(r, c) && (!battle.unitAt(r, c) || battle.unitAt(r, c) === unit);
+  /** 清算: move onto a ground enemy within the radius standing on free deployable ground (nearest first). */
+  const dash = (battle, unit) => {
+    const foes = battle.foesInRadius(unit.x, unit.y, DEMETR_DASH_RADIUS)
+      .filter((e) => e.alive && !e.isFlying && freeGround(battle, unit, Math.round(e.y), Math.round(e.x)))
+      .sort((a, b) => Math.hypot(a.x - unit.x, a.y - unit.y) - Math.hypot(b.x - unit.x, b.y - unit.y) || a.id - b.id);
+    const t = foes[0];
+    unit.mem.dashAt = battle.time;
+    if (!t) return false;
+    const r = Math.round(t.y), c = Math.round(t.x);
+    if (r === unit.tileR && c === unit.tileC) return true;
+    const fromX = unit.x, fromY = unit.y;
+    if (!battle.moveRedeploy(unit, r, c)) return false;
+    unit.mem.dashTarget = t;
+    battle.fx('teleport', { x: unit.x, y: unit.y, id: unit.id, fromX, fromY });
+    return true;
+  };
+  const goHome = (battle, unit) => {
+    const h = unit.mem.home;
+    unit.mem.home = null;
+    if (!h || !unit.alive || !unit.deployed || (unit.tileR === h[0] && unit.tileC === h[1])) return;
+    const fromX = unit.x, fromY = unit.y;
+    if (freeGround(battle, unit, h[0], h[1]) && battle.moveRedeploy(unit, h[0], h[1])) battle.fx('teleport', { x: unit.x, y: unit.y, id: unit.id, fromX, fromY });
+  };
+  return {
+    skills: alt(def, {
+      skchr_demetr_1: () => ({ kind: instantKind(def), attack: { atkScale: num(bb.atk_scale, 2.1), hits: 2 } }),
+      skchr_demetr_2: () => ({
+        kind: 'duration',
+        mods: { aspd: num(bb.attack_speed) },
+        targeting: { ...(g ? { rangeGrid: g } : {}), maxTargets: Math.max(1, Math.floor(num(bb['attack@max_target'], 3))) },
+        attack: { atkScale: num(bb['attack@atk_scale'], 1.7) },
+        onStart({ battle, unit }) { battle.fx('overclock', { x: unit.x, y: unit.y, id: unit.id }); },
+      }),
+    }),
+    skill: {
+      kind: 'duration',
+      mods: { atkPct: s3('atk', 1.4), aspd: s3('attack_speed', 40) },
+      onStart({ battle, unit }) {
+        unit.mem.home = [unit.tileR, unit.tileC];
+        unit.mem.lastHitAt = battle.time;
+        dash(battle, unit);
+      },
+      onTick({ battle, unit }) {
+        const t = unit.mem.dashTarget;
+        const idle = battle.time - Math.max(unit.lastAttackAt ?? -Infinity, unit.mem.dashAt ?? -Infinity) >= 1 - 1e-9;
+        const eliteDown = t && !t.alive && (t.isBoss || t.def?.rank === 'ELITE' || t.def?.rank === 'BOSS');
+        if (idle || eliteDown) { unit.mem.dashTarget = null; dash(battle, unit); }
+      },
+      onEnd({ battle, unit }) { unit.mem.dashTarget = null; goHome(battle, unit); },
+    },
+    talents: [
+      { install(battle, unit) { // 家族手段
+        unit.mem.means = new Map();
+        battle.on('hit', (c) => {
+          if (c.source !== unit || !c.target || c.target.side !== 'enemy') return;
+          const e = c.target;
+          if (c.dmg.isAttack) {
+            const s2 = S2 && skillActive(unit);
+            const m = unit.mem.means.get(e.id);
+            const live = m && m.until > battle.time ? m.n : 0;
+            const n = Math.min(s2 ? capS2 : cap, live + 1);
+            const until = battle.time + markDur;
+            unit.mem.means.set(e.id, { n, until });
+            applyMark(battle, unit, e, n, until);
+            if (s2 && n >= capS2) battle.applyStatus(e, 'sluggish', { duration: markDur, source: unit });
+          }
+          // the lower the target's HP ratio, the more damage (linear, +max_add_on_scale at ≤ max_hp_ratio)
+          const r = Math.max(0, Math.min(1, e.hpRatio ?? 1));
+          const k = r >= hiR ? 0 : r <= loR ? 1 : (hiR - r) / Math.max(1e-6, hiR - loR);
+          if (k > 0) c.dmg.mul *= 1 + maxAdd * k;
+          // 清算: the proc raises the attack to prob_atk_scale × ATK
+          if (S3 && skillActive(unit) && c.dmg.isAttack && !c.dmg.isSplash && battle.rng() < s3('prob', 0.4)) c.dmg.mul *= s3('prob_atk_scale', 1.5);
+        }, { owner: unit });
+        battle.every(0.1, () => { // the "natural update": stacks above the cap fall back outside S2
+          if (S2 && skillActive(unit)) return;
+          for (const [id, m] of unit.mem.means) {
+            const e = battle.unitById(id);
+            if (!e || !e.alive || m.until <= battle.time) { unit.mem.means.delete(id); continue; }
+            if (m.n > cap) {
+              m.n = cap;
+              applyMark(battle, unit, e, m.n, m.until);
+              if (e.findBuff('sluggish')?.source === unit) battle.removeBuff(e, 'sluggish');
+            }
+          }
+        }, { owner: unit });
+      } },
+      { install(battle, unit) { // 街头直觉: 80 % on deploy, −dec per second (trig_cnt times) to init − dec × cnt
+        const init = num(t1.init_prob, 0.8), dec = num(t1.dec_prob, 0.02), cnt = Math.max(0, Math.floor(num(t1.trig_cnt, 20)));
+        const set = (p) => battle.addBuff(unit, { key: 'demetr:t2', mods: { dodgePhys: p, dodgeArts: p }, persist: true });
+        battle.on('deploy', (c) => {
+          if (c.unit !== unit || c.move) return;
+          unit.mem.dodgeSeq = (unit.mem.dodgeSeq || 0) + 1;
+          const seq = unit.mem.dodgeSeq;
+          set(init);
+          for (let i = 1; i <= cnt; i++) battle.after(i, () => { if (unit.mem.dodgeSeq === seq) set(init - dec * i); }, { owner: unit });
+        }, { owner: unit });
+        if (unit.deployed) set(init - dec * cnt);
+      } },
+    ],
+    install(battle, unit) {
+      // trait (elite): ASPD up while HP is above the ratio
+      if (num(tb.attack_speed, 0) > 0) whileDeployed(battle, unit, AURA, () => { if (unit.hpRatio > num(tb.hp_ratio, 0.5)) pulse(battle, unit, 'demetr:trait', { aspd: num(tb.attack_speed) }); });
+      if (!S3) return;
+      battle.on('fatal', (c) => { // 清算: a fatal hit ends the skill instead of a retreat
+        if (c.unit !== unit || !skillActive(unit)) return;
+        c.prevented = true;
+        unit.skill.end('fatal');
+      }, { owner: unit });
+    },
+  };
+}
+
+// ===== 丰川祥子 (lord) S3 残月的余响 — skill range; each attack: two phys notes on the highest-RES enemy, two arts notes
+//       on the highest-DEF one, attack@atk_scale each. S1 新月的苏醒 (charges: 8 arts notes atk_scale … atk_scale_8);
+//       S2 满月的舞会 (piano: ATK +, phys / organ: ASPD +, arts — switched at each cast). Talents 颂乐音符 (notes ⇒ DEF / RES
+//       ignore; no ranged ATK cut while a skill runs) / 毋畏遗忘 (Fever +cnt per damage; operators in her range ASPD +).
+/** How long a note counts for 颂乐音符 (s) [ASSUMED: notes fly on after their hit and fade]. */
+export const SAKIKO_NOTE_LIFE = 1.5;
+const FEVER_MAX = 450;
+const FEVER_TIME = 20;
+function sakiko(bb, chess, def) {
+  const t0 = tbb(def, 0), t1 = tbb(def, 1), tb = def.traitBb || {};
+  const S1 = isSel(def, 'skchr_oblvns_1'), S2 = isSel(def, 'skchr_oblvns_2'), S3 = isSel(def, 'skchr_oblvns_3');
+  const g = grid(def.skill?.rangeGrid);
+  const rangedScale = num(tb.atk_scale, 0.8);
+  const noteCap = Math.max(1, Math.floor(num(t0.max_cnt, 12)));
+  const feverOn = (battle, unit) => (unit.mem.feverUntil ?? -Infinity) > battle.time;
+  const notes = (battle, unit) => (unit.mem.notes = (unit.mem.notes || []).filter((t) => t > battle.time)).length;
+  const s1Scales = ['atk_scale', ...[2, 3, 4, 5, 6, 7, 8].map((i) => `atk_scale_${i}`)].map((k) => num(bb[k], 0)).filter((v) => v > 0);
+  const ranged = (unit, e) => {
+    if (e.blockedBy === unit) return false;
+    const [fr, fc] = frontOf(unit.tileR, unit.tileC, unit.dir);
+    return !(bodyOnTile(e, unit.tileR, unit.tileC) || bodyOnTile(e, fr, fc));
+  };
+  /** S1: 8 notes, nearest enemies in range first, round-robin. */
+  const burst = (battle, unit) => {
+    const foes = enemiesOnRange(battle, unit).filter((e) => e.alive).sort((a, b) => Math.hypot(a.x - unit.x, a.y - unit.y) - Math.hypot(b.x - unit.x, b.y - unit.y) || a.id - b.id);
+    if (!foes.length) return;
+    s1Scales.forEach((sc, i) => {
+      const e = foes[i % foes.length];
+      if (!e.alive) return;
+      unit.mem.notes.push(battle.time + SAKIKO_NOTE_LIFE);
+      battle.dealDamage(unit, e, { amount: unit.s.atk * sc, type: 'arts', isSkill: true, tags: ['skill', 'note'] });
+    });
+    battle.fx('splash', { x: foes[0].x, y: foes[0].y, id: foes[0].id });
+  };
+  const toneMods = (tone) => (tone === 'organ' ? { aspd: num(bb['attack@attack_speed'], 110) } : { atkPct: num(bb['attack@atk'], 0.75) });
+  return {
+    skills: alt(def, {
+      skchr_oblvns_1: () => ({ kind: instantKind(def), onStart({ battle, unit }) { burst(battle, unit); } }),
+      skchr_oblvns_2: () => ({
+        kind: 'instant',
+        onStart({ battle, unit }) {
+          if ((unit.mem.fever || 0) >= FEVER_MAX) return; // the cast that starts Fever only starts it (PRTS 备注)
+          unit.mem.tone = unit.mem.tone === 'organ' ? 'piano' : 'organ';
+          battle.addBuff(unit, { key: 'oblvns:tone', mods: toneMods(unit.mem.tone), persist: true });
+        },
+      }),
+    }),
+    skill: {
+      kind: 'duration',
+      targeting: g ? { rangeGrid: g } : undefined,
+      attack: { atkScale: num(bb['attack@atk_scale'], 1.8), hits: 2 },
+      onStart({ battle, unit }) { battle.fx('overclock', { x: unit.x, y: unit.y, id: unit.id }); },
+      onHit({ battle, unit }) { // the organ's two arts notes on the highest-DEF enemy in range
+        const foes = enemiesOnRange(battle, unit).filter((e) => e.alive);
+        if (!foes.length) return;
+        const e = foes.sort((a, b) => (b.s.def ?? 0) - (a.s.def ?? 0) || a.id - b.id)[0];
+        for (let i = 0; i < 2 && e.alive; i++) {
+          unit.mem.notes.push(battle.time + SAKIKO_NOTE_LIFE);
+          battle.dealDamage(unit, e, { amount: unit.s.atk * num(bb['attack@atk_scale'], 1.8), type: 'arts', isSkill: true, tags: ['skill', 'note'] });
+        }
+      },
+      onTick({ unit, battle, skill }) { if (feverOn(battle, unit)) skill.timeLeft = Math.max(skill.timeLeft, unit.mem.feverUntil - battle.time); },
+    },
+    talents: [
+      { install(battle, unit) { // 颂乐音符 + Fever points + the ranged cut lifted during a skill
+        unit.mem.notes = [];
+        battle.on('attack', (c) => {
+          if (c.attacker !== unit) return;
+          unit.mem.notes.push(battle.time + SAKIKO_NOTE_LIFE);
+          if (S1 && feverOn(battle, unit)) burst(battle, unit);
+        }, { owner: unit });
+        battle.on('beforeAttack', (c) => { // S3: the piano notes go to the highest-RES enemy in range
+          if (c.attacker !== unit || !S3 || !skillActive(unit)) return;
+          const foes = enemiesOnRange(battle, unit).filter((e) => e.alive);
+          if (foes.length) c.targets = [foes.sort((a, b) => (b.s.res ?? 0) - (a.s.res ?? 0) || a.id - b.id)[0]];
+        }, { owner: unit });
+        battle.on('hit', (c) => {
+          if (c.source !== unit || !c.target || c.target.side !== 'enemy') return;
+          unit.mem.fever = Math.min(FEVER_MAX, (unit.mem.fever || 0) + num(t1.cnt, 3));
+          const n = Math.min(noteCap, Math.max(1, notes(battle, unit)));
+          c.dmg.defIgnorePct = (c.dmg.defIgnorePct || 0) + n * num(t0.def_penetrate_ratio, 0.05);
+          c.dmg.resIgnorePct = (c.dmg.resIgnorePct || 0) + n * num(t0.magic_resist_penetrate_ratio, 0.025);
+          if (c.dmg.isAttack && skillActive(unit) && ranged(unit, c.target) && rangedScale > 0) c.dmg.mul /= rangedScale;
+        }, { owner: unit });
+        battle.on('damaged', (c) => { // S2 in Fever: every attack hit twice
+          if (c.source !== unit || !S2 || !c.dmg?.isAttack || (c.dmg.tags || []).includes('fever') || !feverOn(battle, unit) || !c.target.alive) return;
+          battle.dealDamage(unit, c.target, { amount: c.dmg.amount, type: c.type, isAttack: true, tags: ['fever'] });
+        }, { owner: unit });
+        battle.on('skillStart', (c) => { // a cast with a full Fever gauge starts Fever
+          if (c.unit !== unit || (unit.mem.fever || 0) < FEVER_MAX) return;
+          unit.mem.fever = 0;
+          unit.mem.feverStartedAt = battle.time;
+          unit.mem.feverUntil = battle.time + FEVER_TIME;
+          battle.fx('overclock', { x: unit.x, y: unit.y, id: unit.id });
+          battle.after(FEVER_TIME, () => { if (unit.mem.feverDoomed && unit.alive) { unit.mem.feverDoomed = false; battle.kill(unit); } }, { owner: unit });
+        }, { priority: 10, owner: unit });
+        battle.on('fatal', (c) => { // S3 in Fever: no retreat until Fever ends
+          if (c.unit !== unit || !S3 || !feverOn(battle, unit)) return;
+          c.prevented = true;
+          unit.mem.feverDoomed = true;
+        }, { owner: unit });
+      } },
+      { install(battle, unit) { // 毋畏遗忘: operators in her range ASPD +
+        const v = num(t1.attack_speed, 12);
+        if (v) whileDeployed(battle, unit, AURA, () => {
+          const ks = keySet(unit);
+          for (const a of battle.allies(unit.ownerId)) if (a.kind === 'op' && a.alive && a.deployed && ks.has(a.tileR * COLS + a.tileC)) pulse(battle, a, `oblvns:t2:${unit.id}`, { aspd: v });
+        });
+      } },
+    ],
+    install(battle, unit) {
+      if (S2) { unit.mem.tone = 'piano'; battle.addBuff(unit, { key: 'oblvns:tone', mods: toneMods('piano'), persist: true }); }
+    },
+  };
+}
+
 const KITS = {};
 for (const tier of [5, 6]) {
   KITS[`chess_pick${tier}_char_4132_ascln_a`] = ascalon;
   KITS[`chess_pick${tier}_char_4072_ironmn_a`] = ironmn;
+  KITS[`chess_pick${tier}_char_4037_demetr_a`] = bellone;
+  KITS[`chess_pick${tier}_char_4182_oblvns_a`] = sakiko;
 }
 export default KITS;
