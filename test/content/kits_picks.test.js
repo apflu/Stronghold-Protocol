@@ -2,7 +2,7 @@
 // effects are asserted with numbers taken from its own blackboards (normal Lv4 / elite Lv7, the selected module).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, chessRec, checkInvariants } from '../helpers/battleHarness.js';
 import KITS from '../../server/sim/content/kits/picks.js';
 
 const approx = (a, b, eps = 1e-6, msg = '') => assert.ok(Math.abs(a - b) <= eps * Math.max(1, Math.abs(b)), `${msg} ${a} ≉ ${b}`);
@@ -397,5 +397,28 @@ test('丰川祥子 S3 残月的余响: two phys notes on the highest-RES enemy, 
   assert.ok(h.runUntil(() => by(res, 'phys').length >= 2 && by(dfn, 'arts').length >= 2, 10));
   assert.equal(by(res, 'arts').length, 0, 'no arts on the high-RES one');
   assert.equal(by(dfn, 'phys').length, 0, 'no phys on the high-DEF one');
+  clean(h);
+});
+
+test('白铁 铁钳号 and 突袭: with no enemy to reach, an idle 突袭 member jumps beside the 铁钳号, charges it and stays', () => {
+  const h = makeBattle({
+    defs: { chess: { r_m: chessRec({ id: 'r_m', bonds: ['raidShip'], stats: { maxHp: 3000, atk: 500, def: 0, blockCnt: 1, bat: 1 } }) } },
+    units: [
+      { chessId: IRON, row: 10, col: 2, uid: 1 },
+      { kind: 'token', tokenId: P3, ownerUid: 1, row: 12, col: 7, uid: 3, dir: 'RIGHT' },
+      { chessId: 'r_m', row: 9, col: 2, uid: 2 },
+    ],
+    bonds: { raidShip: { count: 2, active: true, tier: 1, layers: 10 } }, hooks: ['deploy'], autoFinish: false, timeLimit: 60,
+  });
+  h.run(0.5);
+  const r = h.unit('r_m');
+  const [claw] = devicesOf(h, P3);
+  assert.equal(claw.mem.clawSp, 0, 'nobody reaches it yet');
+  assert.ok(h.runUntil(() => r.tileR !== 9 || r.tileC !== 2, 15), 'the 突袭 member jumps');
+  assert.ok(Math.max(Math.abs(r.tileR - 12), Math.abs(r.tileC - 7)) <= 2, `beside the 铁钳号 (${r.tileR},${r.tileC})`);
+  const at = [r.tileR, r.tileC];
+  h.run(12);
+  assert.ok(claw.mem.clawSp > 0, `it charges the 铁钳号 (SP ${claw.mem.clawSp})`);
+  assert.deepEqual([r.tileR, r.tileC], at, 'busy on it: no further jump');
   clean(h);
 });
