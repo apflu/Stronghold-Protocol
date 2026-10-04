@@ -121,6 +121,7 @@ export const TOKEN_IDS = Object.freeze({
   ironAtk: 'token_10027_ironmn_pile1',
   ironSp: 'token_10027_ironmn_pile2',
   ironClaw: 'token_10027_ironmn_pile3',
+  belloneHome: 'token_10065_demetr_dmtpos',
   deliveryTarget: 'token_10056_angel2_target',
   eagle1: 'token_10057_svash2_eagle1',
   eagle2: 'token_10057_svash2_eagle2',
@@ -1510,6 +1511,8 @@ const RAW_KITS = {
   [TOKEN_IDS.ironAtk]: ironAtk,
   [TOKEN_IDS.ironSp]: ironSp,
   [TOKEN_IDS.ironClaw]: ironClaw,
+  // 牵绊 (贝洛内 S3's home marker): inert; kits/picks.js does not place it
+  [TOKEN_IDS.belloneHome]: inert({ hideFromEnemies: true }),
   [TOKEN_IDS.deliveryTarget]: inert({ hideFromEnemies: true }),
   [TOKEN_IDS.eagle1]: inert({ hideFromEnemies: true }),
   [TOKEN_IDS.eagle2]: inert({ hideFromEnemies: true }),
