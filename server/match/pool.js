@@ -10,6 +10,11 @@
 //     exactly what was taken — chess granted by effects while the pool is empty (or hidden/banned chess) hold 0.
 //   * Invariant (tests): 0 ≤ left ≤ cap and left + Σ held copies == cap for every base chess.
 //
+//   * 甄选干员 (DIY picks, shared/protocol.js checkPicks): addPicks() gives each chosen pick its own entry (`pick: true`,
+//     the tier's copies). A pick entry is only eligible for the rolls of the players who chose it (`picks` option of
+//     roll / tierShares); every other roll — bots, team-wide draws — never sees it. Two players who chose the same
+//     pick share its copies, like any operator.
+//
 // Rolls: each chess slot draws ONE copy uniformly from all remaining copies of eligible chess with tier ≤ shop level
 // ("copy-weighted"; duplicates within a roll allowed). The item slot picks a tier with the same tier shares, then a
 // uniform shop-eligible item of that tier (falling back to lower tiers).
@@ -53,7 +58,7 @@ export class SharedPool {
    * @param {import('./gamedata.js').GameData} gd
    * @param {{ banned?: Iterable<string> }} [opts]
    */
-  constructor(gd, { banned = [] } = {}) {
+  constructor(gd, { banned = [], picks = [] } = {}) {
     this.gd = gd;
     const ban = new Set(banned);
     /** @type {Map<string, { cap: number, left: number, tier: number }>} */
@@ -65,6 +70,18 @@ export class SharedPool {
       this.entries.set(id, { cap, left: cap, tier: gd.tierOf(id) });
     }
     this.banned = [...ban].sort();
+    this.addPicks(picks);
+  }
+
+  /** Add the entries of 甄选 picks (normal chess ids of `diyPick` records; already present / unknown ids are skipped). */
+  addPicks(ids) {
+    for (const id of ids || []) {
+      if (this.entries.has(id)) continue;
+      const c = this.gd.chess(id);
+      if (!c || !c.diyPick || c.isGolden) continue;
+      const cap = this.gd.poolCopies(id);
+      if (cap > 0) this.entries.set(id, { cap, left: cap, tier: this.gd.tierOf(id), pick: true });
+    }
   }
 
   /** Whether a base chess is part of this match's pool (visible, not banned). */
@@ -90,11 +107,12 @@ export class SharedPool {
     return k;
   }
 
-  /** Remaining copies of eligible chess (tier ≤ maxTier, or exactly `tier`). */
-  _eligible({ maxTier = 6, tier = null, filter = null } = {}) {
+  /** Remaining copies of eligible chess (tier ≤ maxTier, or exactly `tier`; pick entries only when in `picks`). */
+  _eligible({ maxTier = 6, tier = null, filter = null, picks = null } = {}) {
     const out = [];
     for (const [id, e] of this.entries) {
       if (e.left <= 0) continue;
+      if (e.pick && !picks?.includes(id)) continue;
       if (tier != null ? e.tier !== tier : e.tier > maxTier) continue;
       if (filter && !filter(id, e)) continue;
       out.push([id, e.left]);
@@ -105,7 +123,8 @@ export class SharedPool {
   /**
    * Copy-weighted roll: one copy uniformly among remaining copies of eligible chess. Returns a base id or null.
    * @param {Function} rng
-   * @param {{ maxTier?: number, tier?: number|null, filter?: (id: string, e: object) => boolean }} [opts]
+   * @param {{ maxTier?: number, tier?: number|null, filter?: (id: string, e: object) => boolean, picks?: string[]|null }} [opts]
+   *   picks: the rolling player's 甄选 picks (their entries join the roll)
    */
   roll(rng, opts = {}) {
     const el = this._eligible(opts);
@@ -117,12 +136,13 @@ export class SharedPool {
     return el[el.length - 1][0];
   }
 
-  /** Tier shares of a copy-weighted roll at shop level `maxTier` (current remaining copies). */
-  tierShares(maxTier) {
+  /** Tier shares of a copy-weighted roll at shop level `maxTier` (current remaining copies; `picks` as in roll). */
+  tierShares(maxTier, picks = null) {
     const t = {};
     let total = 0;
-    for (const [, e] of this.entries) {
+    for (const [id, e] of this.entries) {
       if (e.tier > maxTier || e.left <= 0) continue;
+      if (e.pick && !picks?.includes(id)) continue;
       t[e.tier] = (t[e.tier] || 0) + e.left;
       total += e.left;
     }

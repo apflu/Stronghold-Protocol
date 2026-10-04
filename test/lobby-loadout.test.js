@@ -111,6 +111,22 @@ describe('room.loadout (lobby, stub match)', () => {
     await back.terminate();
   });
 
+  test('甄选 picks ride along: checked, stored on the session and the seat, handed to the match; absent ⇒ kept', async () => {
+    const IRON5 = 'chess_pick5_char_4072_ironmn_a', IRON6 = 'chess_pick6_char_4072_ironmn_a', ASC6 = 'chess_pick6_char_4132_ascln_a';
+    const a = await pool.player('Picker');
+    await err(a, { t: 'room.loadout', entries: {}, picks: [IRON5, IRON6] }, ERR.BAD_TARGET); // an own operator twice
+    await err(a, { t: 'room.loadout', entries: {}, picks: 'x' }, ERR.BAD_MSG);
+    await ok(a, { t: 'room.loadout', entries: {}, picks: [ASC6, IRON5] });
+    await createRoom(a, 'solo');
+    await ok(a, { t: 'room.loadout', entries: { [IRON5]: { skill: 0 } } }); // no picks: the stored ones stay
+    await ok(a, { t: 'room.start' });
+    await a.waitFor('m.public', (p) => p.phase === 'INFO_CHECK');
+    const seat = RecordingStub.instances.at(-1).opts.seats[0];
+    assert.deepEqual(seat.picks, [IRON5, ASC6]);
+    assert.ok(Object.isFrozen(seat.picks));
+    assert.deepEqual(seat.loadout, { [IRON5]: { skill: 0, module: C(C(IRON5).goldenId).modules.find((m) => m.isDefault).uniEquipId } });
+  });
+
   test('heavy-intent limit: a burst of room.loadout beyond the bucket is rate-limited', async () => {
     const a = await pool.player('Spam');
     const replies = await Promise.all(Array.from({ length: 10 }, () => a.request({ t: 'room.loadout', entries: {} })));

@@ -74,13 +74,14 @@ test('numbers: every stats/bb/enemyScale object holds only finite numbers (no nu
   assert.deepEqual(bad.slice(0, 10), [], `${bad.length} bad numeric fields`);
 });
 
-test('chess: 266 records, 112 visible non-DIY (16/17/19/22/19/19 per tier)', () => {
-  assert.equal(Object.keys(chess).length, 266);
+test('chess: 266 season records + 56 甄选 picks, 112 visible non-DIY (16/17/19/22/19/19 per tier)', () => {
+  assert.equal(Object.keys(chess).length, 266 + 56);
+  assert.equal(Object.values(chess).filter((c) => c.diyPick).length, 56);
   assert.equal(visible.length, 112);
   const perTier = {};
   for (const c of visible) perTier[c.tier] = (perTier[c.tier] || 0) + 1;
   assert.deepEqual(perTier, { 1: 16, 2: 17, 3: 19, 4: 22, 5: 19, 6: 19 });
-  assert.equal(normalChess.filter((c) => c.isDiy).length, 4);
+  assert.equal(normalChess.filter((c) => c.isDiy && !c.diyPick).length, 4, 'the 4 official DIY slots');
   assert.equal(normalChess.filter((c) => c.isHidden).length, 17);
 });
 
@@ -149,7 +150,8 @@ test('bonds: 23 bonds with valid members, thresholds and effects', () => {
   assert.deepEqual(bonds.suntShip.thresholds, [2, 5]);
   assert.equal(bonds.soloShip.maxCount, 1);
   // Every chess bond membership is mirrored in the bond member list.
-  for (const c of normalChess) for (const b of c.bonds) assert.ok(bonds[b].members.includes(c.chessId), `${c.chessId} not in ${b}.members`);
+  // 甄选 picks are not season members (the bond strip's member list stays the official one).
+  for (const c of normalChess) for (const b of c.bonds) assert.equal(bonds[b].members.includes(c.chessId), !c.diyPick, `${c.chessId} in ${b}.members`);
 });
 
 test('garrisons: all referenced exist; 43 distinct effect keys', () => {
@@ -426,7 +428,7 @@ test('chess/tokens: talent tokens resolve and every token variant says where it 
     assert.equal(t.placeable, t.displayType !== 'HIDDEN' && made, `${t.tokenId} (${t.name}): placeable`);
   }
   assert.deepEqual(Object.values(tokens).filter((t) => t.placeable).map((t) => t.name).sort(),
-    ['医疗探机', '诅咒娃娃', '斯卡蒂的海嗣', '流形', '狼群', '爬行号·防护单元'].sort());
+    ['医疗探机', '诅咒娃娃', '斯卡蒂的海嗣', '流形', '狼群', '爬行号·防护单元', '白铁™多功能平台', '白铁™多功能平台', '铁钳号·原型机'].sort());
   assert.equal(tokens.enemy_9012_acloon.stats.deployLimit, tokens.enemy_9012_acloon.deployLimit);
 });
 
@@ -434,7 +436,7 @@ test('chess/tokens: talent tokens resolve and every token variant says where it 
 
 test('chess: skills[] = every skill unlocked at the status, at the chess skill level; exactly one default = skill', () => {
   for (const c of Object.values(chess)) {
-    if (c.isDiy) { assert.equal(c.skills, undefined, `${c.chessId}: DIY has no skills`); continue; }
+    if (c.isDiy && !c.diyPick) { assert.equal(c.skills, undefined, `${c.chessId}: DIY has no skills`); continue; }
     assert.ok(Array.isArray(c.skills) && c.skills.length >= 1 && c.skills.length <= 3, `${c.chessId}: skills`);
     const idx = c.skills.map((s) => s.index);
     assert.deepEqual(idx, [...idx].sort((a, b) => a - b), `${c.chessId}: skills ordered by index`);
