@@ -204,7 +204,7 @@ function legacyInvariants(m) {
         assert.ok(Array.isArray(p.items) && p.items.length <= m.gd.equipPerChess, `${p.id} carries ${p.items && p.items.length} items`);
         for (const it of p.items) { note(it); assert.equal(it.kind, 'item'); assert.ok(m.gd.item(it.id), `unknown item ${it.id}`); }
         assert.ok(Number.isInteger(p.poolCopies) && p.poolCopies >= 0);
-        const base = m.gd.baseIdOf(p.id);
+        const base = p.poolKey ?? m.gd.baseIdOf(p.id); // a 甄选 pick's copies belong to its owner's entry
         held.set(base, (held.get(base) || 0) + p.poolCopies);
       } else if (p.kind === 'item') {
         assert.ok(m.gd.item(p.id), `unknown item ${p.id}`);

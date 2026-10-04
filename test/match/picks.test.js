@@ -85,24 +85,66 @@ test('checkPicks: ≤2 per tier, no id twice, an own operator once, a 原型干�
 
 // ---- pool ------------------------------------------------------------------------------------------------------------
 
-test('pool: a pick entry joins only the rolls of the players who chose it, and only from its tier on', () => {
+test('pool: each pick entry belongs to its chooser (full copies each), joins only their rolls, and only from its tier on', () => {
   const gm = makeMatch({ mode: 'solo' }).m;
-  const pool = new SharedPool(gm.gd, { picks: [ASC6] });
+  const pool = new SharedPool(gm.gd);
   gm.dispose();
-  assert.ok(pool.has(ASC6));
-  assert.equal(pool.cap(ASC6), 5, 'the tier-6 copies');
+  pool.addPicks([ASC6], 'p_0');
+  assert.ok(pool.has(ASC6, 'p_0'));
+  assert.ok(!pool.has(ASC6), 'no shared entry');
+  assert.ok(!pool.has(ASC6, 'p_1'), 'not another player\'s');
+  assert.equal(pool.cap(ASC6, 'p_0'), 5, 'the tier-6 copies');
   const rng = createRng(7);
   const rolls = (opts, n = 4000) => { const s = new Set(); for (let i = 0; i < n; i++) s.add(pool.roll(rng, opts)); return s; };
-  assert.ok(!rolls({ maxTier: 6 }).has(ASC6), 'nobody else rolls it');
-  assert.ok(!rolls({ maxTier: 5, picks: [ASC6] }).has(ASC6), 'not below 调度中心 VI');
-  assert.ok(rolls({ maxTier: 6, picks: [ASC6] }).has(ASC6), 'its chooser at VI');
-  assert.ok(!rolls({ tier: 6, filter: (id) => id !== ASC6, picks: [ASC6] }).has(ASC6), 'filters still apply');
+  assert.ok(!rolls({ maxTier: 6 }).has(ASC6), 'a roll without owner never sees it');
+  assert.ok(!rolls({ maxTier: 6, owner: 'p_1' }).has(ASC6), 'nor another player');
+  assert.ok(!rolls({ maxTier: 5, owner: 'p_0' }).has(ASC6), 'not below 调度中心 VI');
+  assert.ok(rolls({ maxTier: 6, owner: 'p_0' }).has(ASC6), 'its chooser at VI');
+  assert.ok(!rolls({ tier: 6, filter: (id) => id !== ASC6, owner: 'p_0' }).has(ASC6), 'filters see the chess id');
   // the shares grow by the pick's copies only for its chooser
-  const a = pool.tierShares(6), b = pool.tierShares(6, [ASC6]);
+  const a = pool.tierShares(6), b = pool.tierShares(6, 'p_0');
   assert.ok(b[6] > a[6]);
-  pool.addPicks([ASC6, 'chess_char_6_01_a', chess(IRON5).goldenId]);
-  assert.equal(pool.cap(ASC6), 5, 'adding twice keeps one entry');
-  assert.ok(!pool.has(chess(IRON5).goldenId), 'elite ids are ignored');
+  // a second player choosing the same pick gets full copies of their own
+  pool.addPicks([ASC6], 'p_1');
+  assert.equal(pool.take(pool.keyOf(ASC6, 'p_0'), 5), 5);
+  assert.equal(pool.left(ASC6, 'p_0'), 0);
+  assert.equal(pool.left(ASC6, 'p_1'), 5, 'untouched by the other player');
+  pool.addPicks([ASC6, 'chess_char_6_01_a', chess(IRON5).goldenId], 'p_0');
+  assert.equal(pool.cap(ASC6, 'p_0'), 5, 'adding twice keeps one entry');
+  assert.ok(!pool.has(chess(IRON5).goldenId, 'p_0'), 'elite ids are ignored');
+});
+
+test('match: two players with the same pick each have its copies; a pick handed to another player goes back to its entry', () => {
+  const seats2 = [
+    { seat: 0, playerId: 'p_0', name: 'P0', isBot: false, connected: true, picks: [ASC6] },
+    { seat: 1, playerId: 'p_1', name: 'P1', isBot: false, connected: true, picks: [ASC6] },
+  ];
+  const h = makeMatch({ mode: 'coop', seats: seats2, seed: 8 }).start();
+  const m = h.m;
+  h.toPrep(1);
+  const p0 = h.ps('p_0'), p1 = h.ps('p_1');
+  const buy = (ps) => {
+    ps.funds = 50;
+    ps.shop.slots[0] = { kind: 'chess', id: ASC6, basePrice: m.gd.chessPrice(ASC6), frozen: false, sold: false };
+    assert.deepEqual(m.handle(ps.playerId, { t: 'g.buy', slot: 0 }), { ok: true });
+    return [...ps.hand, ...ps.temp].filter((p) => p && p.id === ASC6).at(-1);
+  };
+  buy(p0);
+  assert.equal(m.pool.left(ASC6, 'p_0'), 4);
+  assert.equal(m.pool.left(ASC6, 'p_1'), 5, 'p_1 keeps all 5');
+  checkInvariants(m);
+  // p_1's copy ends up with p_0 (a transfer): selling it there returns it to p_1's entry
+  const theirs = buy(p1);
+  assert.equal(theirs.poolKey, m.pool.keyOf(ASC6, 'p_1'));
+  for (const arr of [p1.hand, p1.temp]) { const i = arr.indexOf(theirs); if (i >= 0) arr[i] = null; }
+  p0.hand[p0.hand.indexOf(null)] = theirs;
+  p0.recompute(); p1.recompute();
+  checkInvariants(m);
+  assert.deepEqual(m.handle('p_0', { t: 'g.sell', uid: theirs.uid }), { ok: true });
+  assert.equal(m.pool.left(ASC6, 'p_1'), 5, 'back to p_1');
+  assert.equal(m.pool.left(ASC6, 'p_0'), 4);
+  checkInvariants(m);
+  m.dispose();
 });
 
 // ---- match -----------------------------------------------------------------------------------------------------------
@@ -115,11 +157,11 @@ test('match: seat picks reach the pool when INFO_CHECK ends; the chooser rolls t
   assert.ok(Object.isFrozen(ps.picks));
   assert.deepEqual(mate.picks, []);
   assert.deepEqual(bot.picks, [], 'bots never pick (their seat picks are ignored)');
-  assert.ok(!m.pool.has(ASC6), 'not before the loadout locks');
+  assert.ok(!m.pool.has(ASC6, 'p_0'), 'not before the loadout locks');
   h.flushAll();
   assert.deepEqual(h.lastTo('p_0', 'm.private').picks, [IRON5, ASC6]);
   h.toPrep(1);
-  assert.ok(m.pool.has(ASC6) && m.pool.has(IRON5));
+  assert.ok(m.pool.has(ASC6, 'p_0') && m.pool.has(IRON5, 'p_0'));
   for (const p of [ps, mate, bot]) p.shop.level = 6;
   const seen = new Map([[ps, new Set()], [mate, new Set()], [bot, new Set()]]);
   for (let i = 0; i < 400; i++) for (const p of seen.keys()) { const s = p._rollChessSlot(); if (s) seen.get(p).add(s.id); }
@@ -130,12 +172,12 @@ test('match: seat picks reach the pool when INFO_CHECK ends; the chooser rolls t
   ps.funds = 50;
   ps.shop.slots[0] = { kind: 'chess', id: ASC6, basePrice: m.gd.chessPrice(ASC6), frozen: false, sold: false };
   assert.deepEqual(m.handle('p_0', { t: 'g.buy', slot: 0 }), { ok: true });
-  assert.equal(m.pool.left(ASC6), 4);
+  assert.equal(m.pool.left(ASC6, 'p_0'), 4);
   checkInvariants(m);
   const piece = [...ps.hand, ...ps.temp].find((p) => p && p.id === ASC6);
   assert.ok(piece, 'bought');
   assert.deepEqual(m.handle('p_0', { t: 'g.sell', uid: piece.uid }), { ok: true });
-  assert.equal(m.pool.left(ASC6), 5);
+  assert.equal(m.pool.left(ASC6, 'p_0'), 5);
   checkInvariants(m);
   m.dispose();
 });
@@ -153,7 +195,7 @@ test('Match.setLoadout carries picks during INFO_CHECK only; illegal picks are r
   for (const id of ['p_0', 'p_1']) m.handle(id, { t: 'g.infoReady' });
   h.sched.advance(1);
   assert.equal(m.phase, PHASE.BAND_DRAFT);
-  assert.ok(m.pool.has(SHARP5) && m.pool.has(SHARP6));
+  assert.ok(m.pool.has(SHARP5, 'p_0') && m.pool.has(SHARP6, 'p_0'));
   assert.equal(m.setLoadout('p_0', {}, []).error, ERR.WRONG_PHASE, 'locked after INFO_CHECK');
   m.dispose();
 });
