@@ -1490,10 +1490,11 @@ export function shortcutFor(e) {
 
 /**
  * Whether a press on the field closes the open detail card: a card opened from the field itself (an own piece — tap,
- * right-click or long press — or a battle / teammate unit). Shop, reward, bond-member and intel (enemy) cards stay.
+ * right-click or long press —, a battle / teammate unit, a special tile). Shop, reward, bond-member and intel (enemy)
+ * cards stay — a press on plain ground closes those too (screens/game.js 'tileClick').
  * @param {{ kind?: string }|null|undefined} detail
  */
-export const closesOnFieldPress = (detail) => detail?.kind === 'piece' || detail?.kind === 'unit';
+export const closesOnFieldPress = (detail) => detail?.kind === 'piece' || detail?.kind === 'unit' || detail?.kind === 'terrain';
 
 /**
  * Whether an open overlay swallows a game shortcut: a modal / the guide own the keyboard (Esc included — they close

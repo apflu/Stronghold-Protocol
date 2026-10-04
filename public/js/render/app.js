@@ -34,7 +34,8 @@
 //   view.on(name, fn) → unsubscribe ; view.off(name, fn)
 //        pieceDragStart { uid, piece, from } · pieceDrop { uid, piece, from, target } · pieceDragEnd {uid, dropped}
 //        pieceClick { uid, piece, button, detail, clientX, clientY } (battle units: { unitId, uid, unit, … })
-//        tileClick { row, col, stageId, button, clientX, clientY } (a press on no unit / piece: the tile under it)
+//        tileClick { row, col, stageId, button, clientX, clientY } (a press on no unit / piece: the tile under it; row / col
+//                  null off the board)
 //        pieceDetail (right-click / long-press) · pieceHover { uid } | { uid: null } (battle: + unitId, unit)
 //        tileHover { row, col, area, idx } | null (while dragging: the drop target — the tile under the pointer)
 //   view.pieceScreenRect(uid) → { left, top, right, bottom, width, height, x, y } (client px: the drawn body) | null
@@ -1297,7 +1298,8 @@ export async function createFieldView(host, options = {}) {
   function emitTileClick(ev, e) {
     if (e.button != null && e.button !== 0 && e.button !== 2) return;
     const t = groundTile(ev.x, ev.y);
-    if (t) emit('tileClick', { row: t.row, col: t.col, stageId: stageRec ? stageRec.id : null, button: e.button, clientX: e.clientX, clientY: e.clientY });
+    // off the board too (row / col null): the UI clears its cards on a press on nothing
+    emit('tileClick', { row: t ? t.row : null, col: t ? t.col : null, stageId: stageRec ? stageRec.id : null, button: e.button, clientX: e.clientX, clientY: e.clientY });
   }
   const onPointerMove = (e) => {
     if (destroyed) return;

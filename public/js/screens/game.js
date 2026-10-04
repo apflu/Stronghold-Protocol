@@ -804,12 +804,16 @@ function MatchScreen() {
         const reason = dropFailureReason(L.placeCtx, e.uid, tile);
         if (reason) refuse(reason);
       }),
-      // a special tile / device (活性源石, 排气格栅, 源石流 …): its card (ui/terrainInfo.js); other tiles change nothing
+      // a special tile / device (活性源石, 排气格栅, 源石流 …): its card (ui/terrainInfo.js); plain ground (or outside
+      // the board) closes whatever card is open and the selection — the press on the field already closed the cards
+      // opened from it (closesOnFieldPress); shop / reward / intel cards go too, players expect a tap on nothing to clear
       view.on('tileClick', (e) => {
         const L = live.current;
         if (!e || L.facing) return;
         const features = tileFeatures(e.stageId ? data.lookup('stages', e.stageId) : null, e.row, e.col);
-        if (features.length) setDetail({ kind: 'terrain', features });
+        if (features.length) { setDetail({ kind: 'terrain', features }); return; }
+        setDetail(null);
+        setSel(null);
       }),
       view.on('pieceClick', (e) => {
         if (!e) return;

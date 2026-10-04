@@ -60,6 +60,7 @@ describe('detail card vs a press on the field', () => {
   test('a card opened from the field (tap, right-click, long press, battle unit) closes; others stay', () => {
     assert.equal(closesOnFieldPress({ kind: 'piece', uid: 3 }), true);
     assert.equal(closesOnFieldPress({ kind: 'unit', unitId: 7 }), true);
+    assert.equal(closesOnFieldPress({ kind: 'terrain', features: [] }), true, 'a special tile card closes on a field press');
     for (const kind of ['chess', 'item', 'enemy']) assert.equal(closesOnFieldPress({ kind, id: 'x' }), false, kind);
     assert.equal(closesOnFieldPress(null), false);
   });
