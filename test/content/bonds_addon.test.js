@@ -440,6 +440,29 @@ test('突袭 #51: the most advanced enemy out of reach → the jump goes to the 
   checkInvariants(h.b);
 });
 
+test('不屈 tier 2: a 突袭 jump (the raid retreat of a 地面干员) gives every operator on the field +5 SP too; tier 1 does not', () => {
+  const ind = bondBb('indomShip'), raid = bondBb('raidShip');
+  const sk = { spCost: 50, initSp: 0 };
+  const defs = { chess: { r_m: op('r_m', ['raidShip']), i_o: chessRec({ id: 'i_o', bonds: [], skill: sk }) }, enemies: DUMMY };
+  const run = (tier) => {
+    const h = makeBattle({
+      defs, bonds: { raidShip: bond(1, 10), indomShip: bond(tier, 300, tier === 2 ? 3 : 2) }, enemies: [{ key: 'enemy_addon_dummy', pos: [9, 8] }],
+      units: [{ chessId: 'r_m', row: 12, col: 3 }, { chessId: 'i_o', row: 12, col: 6 }],
+    });
+    const o = h.unit('i_o');
+    h.run(raid.no_attack_duration - 0.5);
+    const sp0 = o.skill.sp;
+    assert.ok(h.runUntil(() => raidJumps(h).length >= 1, 2), 'the 突袭 member jumps');
+    const r = { gain: o.skill.sp - sp0, redeployed: h.unit('r_m').alive };
+    checkInvariants(h.b);
+    return r;
+  };
+  const t2 = run(2), t1 = run(1);
+  assert.ok(t2.redeployed && t1.redeployed);
+  assert.ok(t2.gain >= ind.sp - 1e-6 && t2.gain <= ind.sp + 1, `tier 2: +${ind.sp} on the jump (${t2.gain.toFixed(2)})`);
+  assert.ok(t1.gain < 1, `tier 1: nothing (${t1.gain.toFixed(2)})`);
+});
+
 test('不屈: knocked-out 地面干员 (melee position) redeploys (p=1 at high L); tier 2 every operator +5 SP; inactive / ranged → no', () => {
   const bb = bondBb('indomShip');
   const sk = { spCost: 50, initSp: 0 };
