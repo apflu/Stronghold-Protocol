@@ -745,6 +745,64 @@ function hasE2Art(ctx, charId, kind) {
 }
 
 /**
+ * 甄选干员 (the DIY slots of 调度中心 V and VI, act.diyChessDict): operators a player may bring into the match on top of
+ * the season's roster. The official selection is "the 6★ you own (not the season's own) + the 原型干员" — this table is
+ * the curated part of that list we support. Each pick becomes a real chess per tier it may fill (`chess_pick<T>_<charId>`
+ * _a / _b), built like any season chess at the status of the official DIY slot of that tier (E2 Lv1 skill 4 / E2 Lv60
+ * skill 7, module level 1 at V, 3 at VI); the default skill is the last one (loadouts choose another). Bonds follow
+ * the official rule (所属势力 ∪ 隐藏势力) ∩ the 8 core factions, else 协防干员 — read from PRTS's 属性 infobox;
+ * the 原型干员 carry no faction. A pick never has a 驻场 (garrison) effect. `rec.diyPick` = 'prototype' (a 原型干员: may fill
+ * a V and a VI slot) | 'own' (an operator of the player's own: one slot at most).
+ */
+const DIY_PICKS = [
+  { charId: 'char_4072_ironmn', tiers: [5, 6], bonds: ['victoriaShip'] }, // 白铁: 维多利亚
+  { charId: 'char_4132_ascln', tiers: [5, 6], bonds: ['emptyShip'] }, // 阿斯卡纶: 罗德岛, S.W.E.E.P. (隐藏: 巴别塔)
+  // 6★ 原型干员 (V and VI)
+  ...['char_608_acpion', 'char_609_acguad', 'char_610_acfend', 'char_611_acnipe', 'char_612_accast', 'char_613_acmedc',
+    'char_614_acsupo', 'char_615_acspec', 'char_617_sharp2'].map((charId) => ({ charId, tiers: [5, 6], bonds: ['emptyShip'], prototype: true })),
+  // 4★ 预备干员 (V only; 先锋 and 特种 are not offered)
+  ...['char_601_cguard', 'char_602_cdfend', 'char_603_csnipe', 'char_604_ccast', 'char_605_cmedic', 'char_606_csuppo']
+    .map((charId) => ({ charId, tiers: [5], bonds: ['emptyShip'], prototype: true })),
+];
+
+/** Token deploy limits set by the owner's talent (buildTokens). */
+const OWNER_DEPLOY_LIMIT = { token_10027_ironmn_pile1: 2, token_10027_ironmn_pile2: 2, token_10027_ironmn_pile3: 2 };
+
+/** Chess id of a 甄选 pick at a tier (normal `_a`, golden `_b`). */
+const pickChessId = (tier, charId, golden = false) => `chess_pick${tier}_${charId}_${golden ? 'b' : 'a'}`;
+
+/**
+ * The synthetic activity rows of every 甄选 pick: { chessId, cd, shop } shaped like charChessDataDict /
+ * charShopChessDatas, the status copied from the official DIY slot of the tier.
+ */
+function diyPickRows(ctx) {
+  const { act, charTable } = ctx;
+  const slotOf = (tier) => (act.shopLevelDisplayDataDict?.[tier]?.charChessDiySlotIdList || [])[0] || null;
+  const rows = [];
+  for (const p of DIY_PICKS) {
+    const char = charTable[p.charId];
+    if (!char) { warn(`甄选 ${p.charId}: not in character_table (skipped)`); continue; }
+    for (const tier of p.tiers) {
+      const slot = slotOf(tier);
+      const slotCd = slot && act.charChessDataDict[slot];
+      const slotGolden = slotCd && act.charChessDataDict[slotCd.upgradeChessId];
+      if (!slotCd || !slotGolden) { warn(`甄选 ${p.charId}: no official DIY slot at tier ${tier} (skipped)`); continue; }
+      const a = pickChessId(tier, p.charId);
+      const b = pickChessId(tier, p.charId, true);
+      const modules = (ctx.uniequip.charEquip?.[p.charId] || []).filter((id) => ctx.uniequip.equipDict?.[id]?.type === 'ADVANCED');
+      const shop = {
+        chessId: a, goldenChessId: b, chessLevel: tier, shopLevelSortId: null, chessType: 'DIY', charId: p.charId,
+        defaultSkillIndex: Math.max(0, (char.skills || []).length - 1), defaultUniEquipId: modules[0] || null, isHidden: false,
+      };
+      shop.diyPick = p.prototype ? 'prototype' : 'own';
+      rows.push({ chessId: a, shop, cd: { identifier: null, isGolden: false, status: { ...slotCd.status }, upgradeChessId: b, upgradeNum: slotCd.upgradeNum, bondIds: [...p.bonds], garrisonIds: [] } });
+      rows.push({ chessId: b, shop, cd: { identifier: null, isGolden: true, status: { ...slotGolden.status }, upgradeChessId: null, upgradeNum: 0, bondIds: [...p.bonds], garrisonIds: [] } });
+    }
+  }
+  return rows;
+}
+
+/**
  * Build data/chess.json: every chess (normal + golden) of the season, keyed by chessId, with its loadout
  * choices (DESIGN §16: `skills[]`; golden `modules[]` + `statsBase`/`traitBase`/`talentsBase`).
  * `tokenOwners` entries carry `skillAlts` ({index, count, sources} per non-default skill) and `moduleAlts`
@@ -758,10 +816,13 @@ function buildChess(ctx) {
   const diyIds = new Set(Object.keys(act.diyChessDict || {}));
   const priceTable = act.shopCharChessInfoData;
 
-  for (const chessId of Object.keys(act.charChessDataDict).sort(naturalCmp)) {
-    const cd = act.charChessDataDict[chessId];
+  const rows = Object.keys(act.charChessDataDict).sort(naturalCmp).map((chessId) => {
     const baseId = act.chessNormalIdLookupDict[chessId] || chessId;
-    const shop = act.charShopChessDatas[baseId];
+    return { chessId, baseId, cd: act.charChessDataDict[chessId], shop: act.charShopChessDatas[baseId] };
+  });
+  for (const r of diyPickRows(ctx)) rows.push({ ...r, baseId: r.shop.chessId, pick: true });
+
+  for (const { chessId, baseId, cd, shop, pick = false } of rows) {
     if (!shop) { warn(`chess ${chessId}: no charShopChessDatas entry for ${baseId}`); continue; }
     const isGolden = !!cd.isGolden;
     const tier = shop.chessLevel;
@@ -769,7 +830,7 @@ function buildChess(ctx) {
     const phase = phaseIdx(status.evolvePhase);
     const level = status.charLevel || 1;
     const priceRow = (priceTable[String(tier)] || []).find((p) => !!p.isGolden === isGolden) || {};
-    const isDiy = shop.chessType === 'DIY' || diyIds.has(baseId);
+    const isDiy = pick || shop.chessType === 'DIY' || diyIds.has(baseId);
     const rec = {
       chessId, baseId, goldenId: shop.goldenChessId, isGolden, tier,
       identifier: cd.identifier,
@@ -791,7 +852,8 @@ function buildChess(ctx) {
       trait: null, skill: null, talents: [], tokens: [], module: null,
       assets: null,
     };
-    if (isDiy) {
+    if (pick) rec.diyPick = shop.diyPick;
+    if (isDiy && !pick) {
       rec.name = '甄选干员';
       rec.diyRequirement = act.diyChessDict?.[baseId] || null;
       out[chessId] = rec;
@@ -1162,6 +1224,15 @@ function buildTokens(ctx, chess, tokenOwners, enemies) {
       variants,
       assets: { avatar: tokenId, spine: tokenId },
     };
+  }
+
+  // Deploy limits granted by the OWNER's talent, not the token's own attributes: 白铁 战地工程师 "可以携带3个<支援装置>
+  // (最多可部署2个)" at E2 (every 甄选 status) while each device's maxDeployCount is 1.
+  for (const [tokenId, n] of Object.entries(OWNER_DEPLOY_LIMIT)) {
+    const t = out[tokenId];
+    if (!t) continue;
+    t.deployLimit = n;
+    for (const v of Object.values(t.variants)) if (v.stats) v.stats = { ...v.stats, deployLimit: n };
   }
 
   // 炎佑 (yanShip 6-member summon) — allied flying unit built from its enemy template.

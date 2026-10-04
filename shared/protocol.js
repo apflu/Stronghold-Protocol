@@ -133,7 +133,8 @@ export function checkLoadout(entries, getChess) {
   for (const id of Object.keys(entries)) {
     const e = entries[id];
     const base = typeof getChess === 'function' ? getChess(id) : null;
-    if (!base || base.isGolden || base.visible === false || base.isHidden || base.isDiy || (base.baseId && base.baseId !== id)) {
+    const pick = !!base?.diyPick; // a 甄选 pick's skill and module are chosen like any operator's
+    if (!base || base.isGolden || (!pick && (base.visible === false || base.isHidden || base.isDiy)) || (base.baseId && base.baseId !== id)) {
       return { error: 'BAD_TARGET', detail: `unknown chess ${id}` };
     }
     const golden = base.goldenId ? getChess(base.goldenId) || null : null;
@@ -147,6 +148,48 @@ export function checkLoadout(entries, getChess) {
     out[id] = { skill, module };
   }
   return { ok: true, loadout: out };
+}
+
+// ---- 甄选干员 (DIY picks): room.loadout { picks } --------------------------------------------------------------
+
+/**
+ * `room.loadout.picks`: the 甄选 picks of the 调度中心 V and VI slots — normal chess ids of `diyPick` records
+ * (tools/build-data.mjs DIY_PICKS). Up to PICK_LIMITS.perTier per tier, no id twice; an operator of the player's own
+ * (`diyPick: 'own'`) fills one slot at most, a 原型干员 (`'prototype'`) may fill a V and a VI slot. A pick joins the
+ * shop pool of the player who chose it from 调度中心 V / VI on (server/match/pool.js), locked with the loadout.
+ */
+export const PICK_LIMITS = Object.freeze({ perTier: 2, tiers: Object.freeze([5, 6]) });
+/** Structural check of `room.loadout.picks`. */
+export const isPickList = (v) => isList(v, PICK_LIMITS.perTier * PICK_LIMITS.tiers.length, isId);
+
+/**
+ * Semantic check of the 甄选 picks against the game data → { ok, picks } (sorted by tier, then as given) or an error.
+ * @param {any} picks
+ * @param {(id: string) => any} getChess
+ * @returns {{ ok: true, picks: string[] } | { error: 'BAD_MSG'|'BAD_TARGET', detail: string }}
+ */
+export function checkPicks(picks, getChess) {
+  if (picks === undefined || picks === null) return { ok: true, picks: [] };
+  if (!isPickList(picks)) return { error: 'BAD_MSG', detail: 'bad picks' };
+  const perTier = {};
+  const seen = new Set();
+  const own = new Set();
+  for (const id of picks) {
+    const c = typeof getChess === 'function' ? getChess(id) : null;
+    if (!c || !c.diyPick || c.isGolden || (c.baseId && c.baseId !== id) || !PICK_LIMITS.tiers.includes(c.tier)) {
+      return { error: 'BAD_TARGET', detail: `not a 甄选 pick: ${id}` };
+    }
+    if (seen.has(id)) return { error: 'BAD_TARGET', detail: `${id} picked twice` };
+    seen.add(id);
+    perTier[c.tier] = (perTier[c.tier] || 0) + 1;
+    if (perTier[c.tier] > PICK_LIMITS.perTier) return { error: 'BAD_TARGET', detail: `more than ${PICK_LIMITS.perTier} picks at tier ${c.tier}` };
+    if (c.diyPick !== 'prototype') {
+      if (own.has(c.charId)) return { error: 'BAD_TARGET', detail: `${c.charId} fills one slot at most` };
+      own.add(c.charId);
+    }
+  }
+  const tierOf = (id) => getChess(id).tier;
+  return { ok: true, picks: picks.map((id, i) => [id, i]).sort((a, b) => tierOf(a[0]) - tierOf(b[0]) || a[1] - b[1]).map((x) => x[0]) };
 }
 
 /**
@@ -252,8 +295,8 @@ export const C2S = {
   // host confirmed — a seat that changed hands meanwhile is refused
   'room.kick': { seat: (v) => isInt(v, 0, MAX_SEATS - 1), playerId: isId },
   'room.start': {},
-  // operator loadout (DESIGN §16): stored per session/seat; accepted until the match leaves INFO_CHECK
-  'room.loadout': { entries: isLoadoutEntries },
+  // operator loadout (DESIGN §16) + the 甄选 picks: stored per session/seat; accepted until the match leaves INFO_CHECK
+  'room.loadout': { entries: isLoadoutEntries, picks: isPickList, $optional: ['picks'] },
   // spectator seats (remake feature, community report #26; MAX_SPECTATORS): take one of a co-op room's spectator seats —
   // in its lobby or while its match runs — never a player seat; the host frees one by playerId (the spectator gets
   // room.closed { reason: 'kicked' }). room.leave / g.leave leave a spectator seat like a player seat.

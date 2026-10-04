@@ -505,18 +505,20 @@ export class Match {
 
   /**
    * room.loadout during the match (DESIGN §16): only while INFO_CHECK runs (the briefing's 干员调配 entry); the lobby
-   * already checked it against the data (PlayerState.setLoadout re-checks it).
+   * already checked it against the data (PlayerState.setLoadout / setPicks re-check it).
    * @param {string} playerId
    * @param {Record<string, { skill: number, module: string|null }> | null} loadout
+   * @param {string[]} [picks] the 甄选 picks (undefined: unchanged)
    * @returns {{ ok: true } | { error: string, detail?: string }}
    */
-  setLoadout(playerId, loadout) {
+  setLoadout(playerId, loadout, picks = undefined) {
     const ps = this.players.get(playerId);
     if (!ps || ps.isBot || ps.left) return fail(ERR.NOT_IN_ROOM);
     if (this.disposed || this.ended || this.phase !== PHASE.INFO_CHECK) return fail(ERR.WRONG_PHASE, 'loadout locked for this match');
     let res = OK;
     this.guard(() => {
       if (!ps.setLoadout(loadout)) { res = fail(ERR.BAD_TARGET, 'loadout does not match the game data'); return; }
+      if (picks !== undefined && !ps.setPicks(picks)) { res = fail(ERR.BAD_TARGET, 'picks do not match the game data'); return; }
       this.markPrivate(ps);
     });
     return res;
@@ -1336,6 +1338,8 @@ export class Match {
   enterBandDraft() {
     if (this.phase !== PHASE.INFO_CHECK) return;
     this.phase = PHASE.BAND_DRAFT;
+    // the 甄选 picks are locked with the loadout: their pool entries exist before the first roll
+    for (const ps of this.order) this.pool.addPicks(ps.picks);
     const order = this.order.map((p) => p.playerId);
     if (!this.isSolo) this.rngDraft.shuffle(order);
     const skips = this.isSolo ? 0 : this.gd.bandDraft.skipsPerPlayer;
@@ -1717,9 +1721,10 @@ export class Match {
    * Roll a choices.json pool (ctx.rollPool). Equip pools → rollItemId. Chess pools: an `items` (uniform) or `weighted`
    * list — only chess with a free pool copy (or outside the pool) qualify — else a copy-weighted draw from the shared
    * pool filtered by `tier` / `minTier` / `maxTier` (number or 'shopLevel') / `bond`; `golden: true` yields the elite id.
+   * `picks`: the rolling player's 甄选 picks (pool.js).
    * @returns {{ kind: 'item'|'chess', id: string, golden?: boolean } | null}
    */
-  rollPool(poolId, { shopLevel = 6 } = {}) {
+  rollPool(poolId, { shopLevel = 6, picks = null } = {}) {
     const pools = this.gd.choices.pools && typeof this.gd.choices.pools === 'object' ? this.gd.choices.pools : {};
     const p = typeof poolId === 'string' && Object.hasOwn(pools, poolId) ? pools[poolId] : null;
     if (!p || typeof p !== 'object') return null;
@@ -1749,6 +1754,7 @@ export class Match {
       id = this.pool.roll(rng, {
         tier: Number.isInteger(p.tier) ? p.tier : null,
         maxTier,
+        picks,
         filter: (cid, e) => e.tier >= minTier && (!bond || (Array.isArray(this.gd.chess(cid)?.bonds) && this.gd.chess(cid).bonds.includes(bond))),
       });
     }

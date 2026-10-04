@@ -71,7 +71,7 @@
 //     normal chess → moduleId null, elite → uniEquipId | 'none'); m.private exposes `loadout`.
 
 import { ERR, GEO, PHASE, layerGainRoom } from '../../shared/constants.js';
-import { checkLoadout, resolveLoadout } from '../../shared/protocol.js';
+import { checkLoadout, checkPicks, resolveLoadout } from '../../shared/protocol.js';
 import { FIELD, tileKey, parseKey, inField, canPlace, placeClass, boardOrder, freeSlot, pieceDir, parseDir, mergeTile, ownerRangeKeys } from './board.js';
 import { attackRangeGrid, loadoutRecord, resolveRecordLoadout } from '../../shared/loadoutRecord.js';
 import { offsetTile } from '../sim/dir.js';
@@ -114,6 +114,9 @@ export class PlayerState {
     if (!this.isBot && seat.loadout) this.setLoadout(seat.loadout);
     /** SP_BOOST: the 轮回之终末 numbers when this human ticked the box (Match.boost), else null */
     this.boost = !this.isBot && seat.boost && m.boost ? m.boost : null;
+    /** 甄选 picks (shared/protocol.js checkPicks): frozen normal chess ids; they join this player's rolls (pool.js) */
+    this.picks = Object.freeze([]);
+    if (!this.isBot && seat.picks) this.setPicks(seat.picks);
     this.shop = { level: 1, upgradePrice: this.gd.upgradeBase(1) ?? 0, slots: [], frozen: false, freeRefreshes: 0 };
     /** reward offers queue (merge rewards, special refreshes): { tier, source, label, slots: [{ kind, id, price, sold }] } */
     this.offers = [];
@@ -230,6 +233,23 @@ export class PlayerState {
     const out = {};
     for (const [id, e] of Object.entries(res.loadout)) out[id] = Object.freeze({ skill: e.skill, module: e.module ?? null });
     this.loadout = Object.freeze(out);
+    return true;
+  }
+
+  /**
+   * Replace the 甄选 picks after re-checking them against this match's data (bots never pick). The match adds them to
+   * the pool when INFO_CHECK ends. Returns false (picks unchanged) when they do not fit the data.
+   * @param {any} picks
+   * @returns {boolean}
+   */
+  setPicks(picks) {
+    if (this.isBot) return false;
+    const res = checkPicks(picks, (id) => this.gd.chess(id));
+    if (!res.ok) {
+      this.m.log?.warn?.(`[match ${this.m.roomCode}] picks of ${this.playerId} ignored: ${res.detail}`);
+      return false;
+    }
+    this.picks = Object.freeze(res.picks);
     return true;
   }
 
@@ -662,7 +682,7 @@ export class PlayerState {
       const fresh = (id) => !list.includes(id);
       for (let i = 0; i < ro.count; i++) {
         let id = null;
-        for (let tt = t; tt >= 1 && !id; tt--) id = this.m.pool.roll(this.m.rngShop, { tier: tt, filter: fresh });
+        for (let tt = t; tt >= 1 && !id; tt--) id = this.m.pool.roll(this.m.rngShop, { tier: tt, filter: fresh, picks: this.picks });
         if (id) list.push(id);
       }
     }
@@ -838,7 +858,7 @@ export class PlayerState {
   }
 
   _rollChessSlot(i = 0) {
-    const id = this.m.pool.roll(this.m.rngShop, { maxTier: this.shop.level });
+    const id = this.m.pool.roll(this.m.rngShop, { maxTier: this.shop.level, picks: this.picks });
     // the normal roll is always drawn first, so the shop rng stream (every player's rolls) is the same with or without it
     // the lucky slot (AI assist / 轮回之终末 box): the first chess slot of a roll only
     const lucky = i === 0 ? this._assistChessSlot() ?? this._boostChessSlot() : null;
@@ -871,7 +891,7 @@ export class PlayerState {
     if (!b || !(b.shopLuck > 0) || this.m.rngBoost() >= b.shopLuck) return null;
     const others = (this.m.order || []).filter((q) => q !== this && q.alive);
     const filter = (id) => !this.gd.isGolden(id) && this.countCopies(id) >= 1 && !others.some((q) => q.countCopies(id) >= 2);
-    const id = this.m.pool.roll(this.m.rngBoost, { maxTier: this.shop.level, filter });
+    const id = this.m.pool.roll(this.m.rngBoost, { maxTier: this.shop.level, filter, picks: this.picks });
     return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
   }
 
@@ -1703,6 +1723,7 @@ export class PlayerState {
       nextEnemies: this.m.nextEnemiesFor(this),
       // DESIGN §16: the effective operator loadout ({ [baseChessId]: { skill, module } }; chess not listed use defaults)
       loadout: this.loadout,
+      picks: this.picks,
       stats: {
         dmgDealt: Math.round(this.stats.dmgDealt), kills: this.stats.kills, leaks: this.stats.leaks, gold: this.stats.gold,
         refreshes: this.stats.refreshes, merges: this.stats.merges,
