@@ -4,16 +4,16 @@
 // 干员调配 screen state (open / origin / selection / filters). `installLoadoutSync()` (called once by main.js) keeps the
 // server's copy current: after every `welcome` (new or resumed session — the server keeps it on the session and on the
 // seat, so joining a room needs no resend) and after every edit (debounced; a pending edit goes out at once when the
-// overlay closes), it sends `room.loadout { entries }` with
-// the entries sanitised against the loaded data/chess.json (ui/loadoutModel.js sanitizeEntries: a stale entry is
-// dropped, never the whole loadout). Replies: RATE → retried later; WRONG_PHASE / ROOM_STARTED → the running match has
+// overlay closes), it sends `room.loadout { entries, picks }` with
+// the entries and the 甄选 picks sanitised against the loaded data/chess.json (ui/loadoutModel.js sanitizeEntries /
+// sanitizePicks: a stale entry or pick is dropped, never the whole loadout). Replies: RATE → retried later; WRONG_PHASE / ROOM_STARTED → the running match has
 // locked its loadout (it applies to the next match, the server stored it) — not an error for the player; anything else
 // is logged. `sync.state` ∈ 'idle' | 'pending' | 'sending' | 'synced' | 'locked' | 'error' is mirrored into the store
 // for the screen's status line.
 
 import { createStore, loadPref, savePref } from '../store.js';
 import { data } from '../data.js';
-import { LOADOUT_PREF, parseStored, toStored, sanitizeEntries } from './loadoutModel.js';
+import { LOADOUT_PREF, PICKS_PREF, parseStored, toStored, sanitizeEntries, parseStoredPicks, toStoredPicks, sanitizePicks } from './loadoutModel.js';
 import { toast } from './toasts.js';
 
 export const SYNC_DEBOUNCE_MS = 500;
@@ -22,16 +22,27 @@ export const RETRY_MS = 1500;
 function readStored() {
   try { return parseStored(loadPref(LOADOUT_PREF, null)); } catch { return {}; }
 }
+function readStoredPicks() {
+  try { return parseStoredPicks(loadPref(PICKS_PREF, null)); } catch { return []; }
+}
 
 /** Loadout + screen state (separate from the app store: it must survive room / match resets). */
 export const loadoutStore = createStore({
   entries: readStored(),
+  picks: readStoredPicks(), // 甄选干员: normal diyPick chess ids (ui/loadoutModel.js)
   open: false,
   from: null,          // 'lobby' | 'room' | 'briefing'
   sel: null,           // selected base chess id
   filters: { tier: null, prof: null, bond: null, query: '', changedOnly: false },
   sync: 'idle',
 });
+
+/** Replace the 甄选 picks (persisted at once; the sync picks the change up). */
+export function setPicks(picks) {
+  const next = Array.isArray(picks) ? picks : [];
+  savePref(PICKS_PREF, toStoredPicks(next));
+  loadoutStore.set({ picks: next });
+}
 
 /** Replace the stored entries (persisted at once; the sync picks the change up). */
 export function setEntries(entries) {
@@ -102,15 +113,17 @@ export function installLoadoutSync({ net, getChessReady, lookupChess, timers, ta
     if (net.status !== 'online') { setState('idle'); return; } // the next welcome resends
     try {
       const current = target.get().entries;
+      const currentPicks = target.get().picks;
       // an empty loadout needs no data (nothing to sanitise): a player who never opened 干员调配 does not download
       // chess.json in the lobby just for this
-      const empty = !current || Object.keys(current).length === 0;
+      const empty = (!current || Object.keys(current).length === 0) && !(Array.isArray(currentPicks) && currentPicks.length);
       const loaded = empty ? true : await ready();
       if (disposed) return;
       // never sanitise against missing data: every entry would be dropped and the server's copy cleared
       if (loaded == null) { setState('error'); return; }
       const entries = empty ? {} : sanitizeEntries(target.get().entries, lookup);
-      const json = JSON.stringify(entries);
+      const picks = empty ? [] : sanitizePicks(target.get().picks, lookup);
+      const json = JSON.stringify({ entries, picks });
       if (json === pendingJson) return; // the same content is already on its way
       if (json === lastSent && pendingJson == null) { edited = false; setState('synced'); return; }
       const my = ++seq;
@@ -119,7 +132,7 @@ export function installLoadoutSync({ net, getChessReady, lookupChess, timers, ta
       pendingJson = json;
       setState('sending');
       try {
-        await net.request('room.loadout', { entries });
+        await net.request('room.loadout', { entries, picks });
         if (my !== seq) return;
         pendingJson = null;
         lastSent = json;
@@ -144,7 +157,7 @@ export function installLoadoutSync({ net, getChessReady, lookupChess, timers, ta
 
   const offWelcome = net.on('welcome', () => { lastSent = null; pendingJson = null; seq++; schedule(50); });
   const offStore = target.subscribe((s, prev) => {
-    if (s.entries !== prev.entries) { edited = true; schedule(); }
+    if (s.entries !== prev.entries || s.picks !== prev.picks) { edited = true; schedule(); }
     // closing the overlay sends a pending edit at once (review fix): the player's next click — 准备就绪 in the solo
     // briefing, 开始模拟 in the room — must not overtake the debounced room.loadout (the match locks its loadout when
     // INFO_CHECK ends, so a late edit would silently only apply to the next match). Same socket ⇒ ordered.

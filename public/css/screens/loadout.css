@@ -398,3 +398,42 @@
 .lo-io__text:focus { border-color: var(--mint-700); }
 .lo-io__text::placeholder { color: var(--text-lo); }
 .lo-io__file { display: none; }
+
+/* 甄选干员 (DIY picks): the four slots above the roster (two per tier, V and VI). A filled slot is a roster card plus
+   更换 / 移除 corner buttons; an empty one is a dashed 甄选 tile. The picker is a shared Modal with a card grid. */
+.lo-picks { flex: none; display: flex; flex-direction: column; gap: .06rem; padding: .06rem .08rem .1rem .02rem; border-bottom: 1px solid var(--line); }
+.lo-picks__head { display: flex; align-items: center; gap: .12rem; flex-wrap: wrap; }
+.lo-picks__head h3 { display: flex; align-items: baseline; gap: .08rem; margin: 0; font-size: max(.2rem, 13px); font-weight: 900; letter-spacing: .1em; }
+.lo-picks__head h3::before { content: ''; align-self: center; width: .05rem; height: .2rem; background: var(--mint-500); }
+.lo-picks__note { font-size: max(.13rem, 9px); color: var(--text-dim); }
+.lo-picks__rows { display: flex; flex-wrap: wrap; gap: .06rem .2rem; }
+.lo-picks__row { display: flex; align-items: center; gap: .08rem; }
+.lo-picks__tier { flex: none; }
+.lo-pick { position: relative; width: max(1.16rem, 64px); }
+.lo-pick .lo-card { width: 100%; }
+.lo-pick--empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .04rem;
+  aspect-ratio: 1 / 1.28; padding: 0; font: inherit; font-size: max(.14rem, 10px); color: var(--text-dim); cursor: pointer;
+  background: rgba(14, 17, 16, .6); border: 1px dashed var(--line-3); touch-action: manipulation;
+}
+.lo-pick--empty:hover { color: var(--mint-400); border-color: var(--mint-500); }
+.lo-pick--empty:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 1px; }
+.lo-pick__x, .lo-pick__swap {
+  position: absolute; top: -.05rem; z-index: 2; display: grid; place-items: center;
+  width: max(.3rem, 20px); height: max(.3rem, 20px); padding: 0; cursor: pointer; color: var(--text-hi);
+  background: rgba(8, 10, 9, .9); border: 1px solid var(--line-3); border-radius: 50%;
+}
+.lo-pick__x { right: -.05rem; }
+.lo-pick__swap { right: calc(max(.3rem, 20px) - .02rem); }
+.lo-pick__x:hover { color: var(--red); border-color: currentColor; }
+.lo-pick__swap:hover { color: var(--mint-400); border-color: currentColor; }
+.lo-pick__x svg, .lo-pick__swap svg { width: 70%; height: 70%; }
+.lo-pickgrid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(max(1.16rem, 64px), 1fr)); gap: .1rem;
+  max-height: min(60vh, 420px); overflow: auto; padding: .02rem;
+}
+.lo-pickgrid .lo-card:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+.lo-pickgrid__tag { justify-content: center; font-size: max(.13rem, 9px); color: var(--text-lo); }
+@media (max-width: 640px) {
+  .lo-pick { width: max(1rem, 58px); }
+}

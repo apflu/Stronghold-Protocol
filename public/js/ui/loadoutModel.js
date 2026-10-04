@@ -9,7 +9,7 @@
 // them only the default skill / module is offered. The option rules are shared with the server
 // (shared/protocol.js loadoutOptions / checkLoadout), so a sanitised loadout is always accepted.
 
-import { loadoutOptions, checkLoadout, resolveLoadout, MODULE_NONE, LOADOUT_LIMITS } from '../../../shared/protocol.js';
+import { loadoutOptions, checkLoadout, checkPicks, resolveLoadout, MODULE_NONE, LOADOUT_LIMITS, PICK_LIMITS } from '../../../shared/protocol.js';
 
 export { MODULE_NONE };
 
@@ -264,12 +264,16 @@ export function selectedModule(loadout, chess, getChess) {
  * Visible normal chess (the loadout slots), in shop order: tier, then shopSortId.
  * @param {any[]} list data.list('chess')
  */
-/** Whether a chess record is a loadout slot (a visible normal chess — what the server's checkLoadout accepts). */
-export const isLoadoutSlot = (c) => !!c && !c.isGolden && c.visible !== false && !c.isHidden && !c.isDiy && (!c.baseId || c.baseId === c.chessId);
+/** Whether a chess record is a 甄选 pick (a normal `diyPick` record — what checkPicks accepts). */
+export const isPickRecord = (c) => !!c && !!c.diyPick && !c.isGolden && (!c.baseId || c.baseId === c.chessId);
 
+/** Whether a chess record is a loadout slot (a visible normal chess or a 甄选 pick — what the server's checkLoadout accepts). */
+export const isLoadoutSlot = (c) => isPickRecord(c) || (!!c && !c.isGolden && c.visible !== false && !c.isHidden && !c.isDiy && (!c.baseId || c.baseId === c.chessId));
+
+/** The season roster (the 甄选 picks have their own strip). */
 export function rosterOf(list) {
   return (Array.isArray(list) ? list : [])
-    .filter(isLoadoutSlot)
+    .filter((c) => isLoadoutSlot(c) && !isPickRecord(c))
     .sort((a, b) => (a.tier ?? 0) - (b.tier ?? 0) || (a.shopSortId ?? 0) - (b.shopSortId ?? 0) || String(a.chessId).localeCompare(String(b.chessId)));
 }
 
@@ -306,9 +310,80 @@ export function changedCount(entries, getChess) {
   let n = 0;
   for (const id of Object.keys(entries || {})) {
     const { base, golden } = recordsOf(id, getChess);
-    if (isLoadoutSlot(base) && base.chessId === id && effectiveChoice(entries, base, golden).changed) n++;
+    if (isLoadoutSlot(base) && !isPickRecord(base) && base.chessId === id && effectiveChoice(entries, base, golden).changed) n++;
   }
   return n;
+}
+
+// ---- 甄选干员 (DIY picks) ---------------------------------------------------------------------------------------------------
+//
+// The picks are a list of normal `diyPick` chess ids (shared/protocol.js checkPicks: ≤2 per tier of PICK_LIMITS.tiers,
+// an own operator in one slot, a 原型干员 in a V and a VI slot), persisted as `sp.pref.picks` = { v: 1, picks } and sent
+// with room.loadout { entries, picks }. A slot is (tier, index within the tier's picks).
+
+export const PICKS_PREF = 'picks';
+export { PICK_LIMITS };
+
+/** Parse stored picks (any junk → []): structurally valid ids only. */
+export function parseStoredPicks(raw) {
+  const src = isObj(raw) && Array.isArray(raw.picks) ? raw.picks : Array.isArray(raw) ? raw : [];
+  const out = [];
+  for (const id of src) {
+    if (out.length >= PICK_LIMITS.perTier * PICK_LIMITS.tiers.length) break;
+    if (typeof id === 'string' && !UNSAFE_IDS.has(id) && /^[A-Za-z0-9_\-.:]{1,64}$/.test(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+export const toStoredPicks = (picks) => ({ v: LOADOUT_VERSION, picks: Array.isArray(picks) ? picks : [] });
+
+/** The picks still legal for the loaded data, added one by one (a stale pick never gets the rest refused). */
+export function sanitizePicks(picks, getChess) {
+  const out = [];
+  for (const id of Array.isArray(picks) ? picks : []) {
+    if (checkPicks([...out, id], getChess).ok) out.push(id);
+  }
+  return checkPicks(out, getChess).ok ? checkPicks(out, getChess).picks : [];
+}
+
+/** { [tier]: [id, …] } in slot order. */
+export function picksByTier(picks, getChess) {
+  const out = Object.fromEntries(PICK_LIMITS.tiers.map((t) => [t, []]));
+  for (const id of Array.isArray(picks) ? picks : []) {
+    const c = getChess(id);
+    if (c && out[c.tier] && out[c.tier].length < PICK_LIMITS.perTier) out[c.tier].push(id);
+  }
+  return out;
+}
+
+/** The pick records a tier offers (own operators first, then the 原型干员), from data.list('chess'). */
+export function pickCandidates(list, tier) {
+  const rank = (c) => (c.diyPick === 'own' ? 0 : 1) * 10 + (c.rarity === 6 ? 0 : 1);
+  return (Array.isArray(list) ? list : []).filter((c) => isPickRecord(c) && c.tier === tier)
+    .sort((a, b) => rank(a) - rank(b) || String(a.charId).localeCompare(String(b.charId)));
+}
+
+/**
+ * Whether `id` may go into slot (tier, index) of `picks` — the rules of checkPicks with that slot replaced.
+ * @returns {boolean}
+ */
+export function canPick(picks, tier, index, id, getChess) {
+  return checkPicks(setPick(picks, tier, index, id, getChess), getChess).ok && setPick(picks, tier, index, id, getChess).includes(id);
+}
+
+/**
+ * Put `id` into slot (tier, index) — null empties it. Returns a new list (tiers in order, slot order kept).
+ * @param {string[]} picks @param {number} tier @param {number} index @param {string|null} id
+ * @param {(id: string) => any} getChess
+ */
+export function setPick(picks, tier, index, id, getChess) {
+  const by = picksByTier(picks, getChess);
+  if (!by[tier]) return Array.isArray(picks) ? picks : [];
+  const row = by[tier].slice();
+  if (id == null) row.splice(index, 1);
+  else if (index < row.length) row[index] = id;
+  else row.push(id);
+  by[tier] = row.slice(0, PICK_LIMITS.perTier);
+  return PICK_LIMITS.tiers.flatMap((t) => by[t]);
 }
 
 // ---- display helpers -----------------------------------------------------------------------------------------------------
