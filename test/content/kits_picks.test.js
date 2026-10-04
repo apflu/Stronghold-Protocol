@@ -225,6 +225,7 @@ test('白铁 S3 铁钳号: allies with nothing to hit charge it; at full SP it s
   const sk = h.b.data.getToken(P3, u.defId).skill;
   approx(u.s.physTakenMul ?? 1, 1 - h.b.data.getToken(P3, u.defId).talents[0].bb.damage_resistance, 1e-6, '团结的力量 on the tile behind');
   assert.ok(h.runUntil(() => tagged(h, 'ironClaw').length > 0, 30), 'it strikes');
+  assert.ok(h.eventsOf('atk').some((e) => e[1] === u.id && e[2] === claw.id), 'his hits on it show as attacks (atk events)');
   const main = tagged(h, 'ironClaw').find((c) => !c.dmg.isSplash);
   approx(main.dmg.amount, u.s.atk * sk.bb.atk_scale, 0.02, '白铁 ATK × atk_scale');
   assert.ok(claw.hp < claw.s.maxHp, 'firing costs it HP');
