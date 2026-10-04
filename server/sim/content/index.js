@@ -1,7 +1,7 @@
 // server/sim/content/index.js — installs all content into a Battle (DESIGN §7).
 //
 // installContent(battle, { mode }) — applies the per-battle loadout data view (simdata withUnitLoadouts; DESIGN §16),
-//   then mode 'full' (default): hand-authored kits (kits/tier1..6) with generic
+//   then mode 'full' (default): hand-authored kits (kits/tier1..6, kits/picks.js) with generic
 //   fallback + every domain module's install(battle); 'generic': generic kits only, no domain modules;
 //   'none': no kits (units never cast skills) and no modules. Every module install runs inside try/catch:
 //   a faulty content module is logged and skipped, never crashing the battle.
@@ -33,7 +33,7 @@ async function safeImport(path) {
   }
 }
 
-const TIERS = await Promise.all([1, 2, 3, 4, 5, 6].map((t) => safeImport(`./kits/tier${t}.js`)));
+const TIERS = await Promise.all([...[1, 2, 3, 4, 5, 6].map((t) => `./kits/tier${t}.js`), './kits/picks.js'].map((f) => safeImport(f)));
 const DOMAIN_NAMES = ['tokens', 'devices', 'enemies', 'bosses', 'bonds', 'garrisons', 'items', 'bands', 'choices'];
 const DOMAINS = await Promise.all(DOMAIN_NAMES.map((n) => safeImport(`./${n}.js`)));
 const tokens = DOMAINS[0];
