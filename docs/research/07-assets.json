@@ -34,7 +34,8 @@
    "spineEnemies": 26585869,
    "enemyIcon": 8779450
   },
-  "license": "All game assets (c) Hypergryph / Yostar. Non-commercial fan project only; credit required; do not redistribute bulk archives."
+  "license": "All game assets (c) Hypergryph / Yostar. Non-commercial fan project only; credit required; do not redistribute bulk archives.",
+  "picks": "甄选干员 (DESIGN §16.1): 白铁, 阿斯卡纶 and 白铁's three devices were added later (the 原型干员 were already listed), probed by the patterns below (2026-10-05)"
  },
  "operators": {
   "char_498_inside": {
@@ -17365,6 +17366,234 @@
     ]
    },
    "subProfessionIcon": "https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/arts/ui/subprofessionicon/sub_wandermedic_icon.png"
+  },
+  "char_4072_ironmn": {
+   "name": "白铁",
+   "rarity": "TIER_6",
+   "profession": "SUPPORT",
+   "subProfessionId": "craftsman",
+   "nationId": "victoria",
+   "chess": [
+    {
+     "chessId": "chess_pick5_char_4072_ironmn_a",
+     "chessLevel": 5,
+     "chessType": "DIY",
+     "defaultSkillIndex": 2,
+     "evolvePhase": "PHASE_2"
+    },
+    {
+     "chessId": "chess_pick6_char_4072_ironmn_a",
+     "chessLevel": 6,
+     "chessType": "DIY",
+     "defaultSkillIndex": 2,
+     "evolvePhase": "PHASE_2"
+    }
+   ],
+   "avatar": {
+    "e0e1": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/char_4072_ironmn.png",
+     "bytes": 58036
+    },
+    "e2": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/char_4072_ironmn_2.png",
+     "bytes": 67930
+    }
+   },
+   "portrait": {
+    "e0e1": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/portrait/char_4072_ironmn_1.png",
+     "bytes": 118562
+    },
+    "e2": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/portrait/char_4072_ironmn_2.png",
+     "bytes": 122487
+    }
+   },
+   "fullArt": {
+    "e0e1": null,
+    "e2": null
+   },
+   "skills": [
+    {
+     "index": 0,
+     "skillId": "skchr_ironmn_1",
+     "iconId": "skchr_ironmn_1",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_ironmn_1.png",
+      "bytes": 16496
+     },
+     "sfx": {}
+    },
+    {
+     "index": 1,
+     "skillId": "skchr_ironmn_2",
+     "iconId": "skchr_ironmn_2",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_ironmn_2.png",
+      "bytes": 17697
+     },
+     "sfx": {}
+    },
+    {
+     "index": 2,
+     "skillId": "skchr_ironmn_3",
+     "iconId": "skchr_ironmn_3",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_ironmn_3.png",
+      "bytes": 24420
+     },
+     "sfx": {}
+    }
+   ],
+   "battleSpine": {
+    "front": {
+     "skel": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4072_ironmn/char_4072_ironmn/Front/char_4072_ironmn.skel",
+      "bytes": 529698
+     },
+     "atlas": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4072_ironmn/char_4072_ironmn/Front/char_4072_ironmn.atlas",
+      "bytes": 1866
+     },
+     "png": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4072_ironmn/char_4072_ironmn/Front/char_4072_ironmn.png",
+      "bytes": 93710
+     },
+     "jsdelivrSkel": "https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/char_4072_ironmn/char_4072_ironmn/Front/char_4072_ironmn.skel"
+    },
+    "back": {
+     "skel": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4072_ironmn/char_4072_ironmn/Back/char_4072_ironmn.skel",
+      "bytes": 320606
+     },
+     "atlas": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4072_ironmn/char_4072_ironmn/Back/char_4072_ironmn.atlas",
+      "bytes": 904
+     },
+     "png": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4072_ironmn/char_4072_ironmn/Back/char_4072_ironmn.png",
+      "bytes": 63519
+     },
+     "jsdelivrSkel": "https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/char_4072_ironmn/char_4072_ironmn/Back/char_4072_ironmn.skel"
+    },
+    "note": "甄选干员 (DESIGN §16.1): probed by URL pattern"
+   },
+   "sfx": {},
+   "subProfessionIcon": "https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/arts/ui/subprofessionicon/sub_craftsman_icon.png"
+  },
+  "char_4132_ascln": {
+   "name": "阿斯卡纶",
+   "rarity": "TIER_6",
+   "profession": "SPECIAL",
+   "subProfessionId": "stalker",
+   "nationId": "rhodes",
+   "chess": [
+    {
+     "chessId": "chess_pick5_char_4132_ascln_a",
+     "chessLevel": 5,
+     "chessType": "DIY",
+     "defaultSkillIndex": 2,
+     "evolvePhase": "PHASE_2"
+    },
+    {
+     "chessId": "chess_pick6_char_4132_ascln_a",
+     "chessLevel": 6,
+     "chessType": "DIY",
+     "defaultSkillIndex": 2,
+     "evolvePhase": "PHASE_2"
+    }
+   ],
+   "avatar": {
+    "e0e1": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/char_4132_ascln.png",
+     "bytes": 73584
+    },
+    "e2": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/char_4132_ascln_2.png",
+     "bytes": 62853
+    }
+   },
+   "portrait": {
+    "e0e1": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/portrait/char_4132_ascln_1.png",
+     "bytes": 138720
+    },
+    "e2": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/portrait/char_4132_ascln_2.png",
+     "bytes": 124234
+    }
+   },
+   "fullArt": {
+    "e0e1": null,
+    "e2": null
+   },
+   "skills": [
+    {
+     "index": 0,
+     "skillId": "skchr_ascln_1",
+     "iconId": "skchr_ascln_1",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_ascln_1.png",
+      "bytes": 22391
+     },
+     "sfx": {}
+    },
+    {
+     "index": 1,
+     "skillId": "skchr_ascln_2",
+     "iconId": "skchr_ascln_2",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_ascln_2.png",
+      "bytes": 22502
+     },
+     "sfx": {}
+    },
+    {
+     "index": 2,
+     "skillId": "skchr_ascln_3",
+     "iconId": "skchr_ascln_3",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_ascln_3.png",
+      "bytes": 21149
+     },
+     "sfx": {}
+    }
+   ],
+   "battleSpine": {
+    "front": {
+     "skel": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4132_ascln/char_4132_ascln/Front/char_4132_ascln.skel",
+      "bytes": 395277
+     },
+     "atlas": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4132_ascln/char_4132_ascln/Front/char_4132_ascln.atlas",
+      "bytes": 2440
+     },
+     "png": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4132_ascln/char_4132_ascln/Front/char_4132_ascln.png",
+      "bytes": 181847
+     },
+     "jsdelivrSkel": "https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/char_4132_ascln/char_4132_ascln/Front/char_4132_ascln.skel"
+    },
+    "back": {
+     "skel": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4132_ascln/char_4132_ascln/Back/char_4132_ascln.skel",
+      "bytes": 257950
+     },
+     "atlas": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4132_ascln/char_4132_ascln/Back/char_4132_ascln.atlas",
+      "bytes": 1583
+     },
+     "png": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_4132_ascln/char_4132_ascln/Back/char_4132_ascln.png",
+      "bytes": 134908
+     },
+     "jsdelivrSkel": "https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/char_4132_ascln/char_4132_ascln/Back/char_4132_ascln.skel"
+    },
+    "note": "甄选干员 (DESIGN §16.1): probed by URL pattern"
+   },
+   "sfx": {},
+   "subProfessionIcon": "https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/arts/ui/subprofessionicon/sub_stalker_icon.png"
   }
  },
  "tokens": {
@@ -17509,6 +17738,36 @@
      "https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/voice/assets/dyn/audio/sound_beta_2/player/p_skill/p_skill_brightenswordborn_token.mp3"
     ]
    }
+  },
+  "token_10027_ironmn_pile1": {
+   "name": "白铁™多功能平台",
+   "avatar": {
+    "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/token_10027_ironmn_pile1.png",
+    "bytes": 36663
+   },
+   "battleSpineDefault": null,
+   "battleSpineSkinVariantsOnly": [],
+   "sfx": {}
+  },
+  "token_10027_ironmn_pile2": {
+   "name": "白铁™多功能平台",
+   "avatar": {
+    "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/token_10027_ironmn_pile2.png",
+    "bytes": 36510
+   },
+   "battleSpineDefault": null,
+   "battleSpineSkinVariantsOnly": [],
+   "sfx": {}
+  },
+  "token_10027_ironmn_pile3": {
+   "name": "铁钳号·原型机",
+   "avatar": {
+    "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/token_10027_ironmn_pile3.png",
+    "bytes": 39199
+   },
+   "battleSpineDefault": null,
+   "battleSpineSkinVariantsOnly": [],
+   "sfx": {}
   },
   "token_10028_vigil_wolf": {
    "name": "狼群",

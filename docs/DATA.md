@@ -134,10 +134,12 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 
 ---
 
-## 2. `chess.json` — `{ [chessId]: Chess }` (266 = 133 normal + 133 golden)
+## 2. `chess.json` — `{ [chessId]: Chess }` (266 season records = 133 normal + 133 golden, + 56 甄选 picks)
 
 112 are `visible` (non-hidden, non-DIY) normal chess: per tier 16/17/19/22/19/19. 17 are `isHidden` (retired
-上半 entries or effect-only such as `chess_char_1_15_a` 盟约·辅助干员 from band Pith); 4 are DIY (甄选) slots.
+上半 entries or effect-only such as `chess_char_1_15_a` 盟约·辅助干员 from band Pith); 4 are DIY (甄选) slots. The 56
+甄选 picks (`chess_pick<T>_<charId>_a/_b`, DESIGN §16.1) are full chess with `isDiy: true`, `visible: false` and
+`diyPick: 'own' | 'prototype'`.
 
 | Field | Example | Meaning |
 |---|---|---|
@@ -173,7 +175,8 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 | `tokens[]` | `["token_10028_vigil_wolf"]` | summons (→ `tokens.json`): displayTokenDict + default-skill `overrideTokenKey` + talent `tokenKey`; `tokens.json → variants[chessId].sources` tells which (a `display`-only token is not produced by this chess's default skill or talents) |
 | `module` | `{"id":"uniequip_002_inside","name":"“最初的惊喜”","type":"MAR-X","level":1,"active":true}` | active only on golden chess |
 | `assets` | `{"avatar":"char_498_inside_2","portrait":"char_498_inside_2","spine":"char_498_inside","skillIcon":"skchr_inside_2","subProfIcon":"sub_fastshot_icon"}` | asset **ids** (URLs in `data/assets.json`); golden uses the E2 art when it exists |
-| `diyRequirement` | `"TIER_6"` | DIY only |
+| `diyRequirement` | `"TIER_6"` | DIY slot only |
+| `diyPick` | `"own"` | 甄选 picks only: `own` (one slot at most) / `prototype` (原型干员: a V and a VI slot) |
 
 `skill`:
 
@@ -487,7 +490,7 @@ Glyph legend (`rows`):
    `…_eagle1/3` stay listed (`sources:["display"]`, belong to S1/S3). With another skill selected (DESIGN §16) the
    talent follows that skill's eagle (`simdata loadoutRecord`; `variants[o].bySkill[i].sources`).
 2. **DIY chess** (`chess_char_5_diy1/2`, `chess_char_6_diy1/2`, `_a` and `_b` = 8 records): no `charId`, no stats/skill; `visible:false`,
-   name placeholder `甄选干员`. Out of scope for v1.
+   name placeholder `甄选干员`. Their statuses are the 甄选 picks' (DESIGN §16.1).
 3. **Module-less chess**: 蒂比 (`chess_char_2_13`) and 凛御银灰 (`chess_char_5_14`) have no module; their golden
    record has `module:{id:null,active:false}` and no module stat bonus.
 4. **Hidden chess (17)** are kept with `visible:false`; several operators exist in two tiers with one hidden

@@ -750,19 +750,20 @@ function hasE2Art(ctx, charId, kind) {
  * the curated part of that list we support. Each pick becomes a real chess per tier it may fill (`chess_pick<T>_<charId>`
  * _a / _b), built like any season chess at the status of the official DIY slot of that tier (E2 Lv1 skill 4 / E2 Lv60
  * skill 7, module level 1 at V, 3 at VI); the default skill is the last one (loadouts choose another). Bonds follow
- * the official rule (所属势力 ∪ 隐藏势力) ∩ the 8 core factions, else 协防干员 — read from PRTS's 属性 infobox;
- * the 原型干员 carry no faction. A pick never has a 驻场 (garrison) effect. `rec.diyPick` = 'prototype' (a 原型干员: may fill
+ * the official rule — the core bonds whose `powerIdList` (autoChessData bondInfoDict) holds the operator's nationId /
+ * groupId / teamId, else 协防干员 (emptyShip); `bonds` overrides it for a 隐藏势力 the character table does not carry
+ * (PRTS 属性 infobox; none so far). The 原型干员 carry no faction. A pick never has a 驻场 (garrison) effect. `rec.diyPick` = 'prototype' (a 原型干员: may fill
  * a V and a VI slot) | 'own' (an operator of the player's own: one slot at most).
  */
 const DIY_PICKS = [
-  { charId: 'char_4072_ironmn', tiers: [5, 6], bonds: ['victoriaShip'] }, // 白铁: 维多利亚
-  { charId: 'char_4132_ascln', tiers: [5, 6], bonds: ['emptyShip'] }, // 阿斯卡纶: 罗德岛, S.W.E.E.P. (隐藏: 巴别塔)
+  { charId: 'char_4072_ironmn', tiers: [5, 6] }, // 白铁: 维多利亚 ⇒ 维多利亚
+  { charId: 'char_4132_ascln', tiers: [5, 6] }, // 阿斯卡纶: 罗德岛, S.W.E.E.P. (隐藏: 巴别塔) ⇒ 协防干员
   // 6★ 原型干员 (V and VI)
   ...['char_608_acpion', 'char_609_acguad', 'char_610_acfend', 'char_611_acnipe', 'char_612_accast', 'char_613_acmedc',
-    'char_614_acsupo', 'char_615_acspec', 'char_617_sharp2'].map((charId) => ({ charId, tiers: [5, 6], bonds: ['emptyShip'], prototype: true })),
+    'char_614_acsupo', 'char_615_acspec', 'char_617_sharp2'].map((charId) => ({ charId, tiers: [5, 6], prototype: true })),
   // 4★ 预备干员 (V only; 先锋 and 特种 are not offered)
   ...['char_601_cguard', 'char_602_cdfend', 'char_603_csnipe', 'char_604_ccast', 'char_605_cmedic', 'char_606_csuppo']
-    .map((charId) => ({ charId, tiers: [5], bonds: ['emptyShip'], prototype: true })),
+    .map((charId) => ({ charId, tiers: [5], prototype: true })),
 ];
 
 /** Token deploy limits set by the owner's talent (buildTokens). */
@@ -778,10 +779,15 @@ const pickChessId = (tier, charId, golden = false) => `chess_pick${tier}_${charI
 function diyPickRows(ctx) {
   const { act, charTable } = ctx;
   const slotOf = (tier) => (act.shopLevelDisplayDataDict?.[tier]?.charChessDiySlotIdList || [])[0] || null;
+  const cores = Object.keys(act.bondInfoDict || {}).filter((id) => ctx.ac.bondInfoDict?.[id]?.isPower)
+    .sort((a, b) => (act.bondInfoDict[a].identifier ?? 0) - (act.bondInfoDict[b].identifier ?? 0) || naturalCmp(a, b));
   const rows = [];
   for (const p of DIY_PICKS) {
     const char = charTable[p.charId];
     if (!char) { warn(`甄选 ${p.charId}: not in character_table (skipped)`); continue; }
+    const powers = [char.nationId, char.groupId, char.teamId].filter(Boolean);
+    const derived = cores.filter((id) => (ctx.ac.bondInfoDict[id].powerIdList || []).some((x) => powers.includes(x)));
+    const bonds = p.bonds || (derived.length ? derived : ['emptyShip']);
     for (const tier of p.tiers) {
       const slot = slotOf(tier);
       const slotCd = slot && act.charChessDataDict[slot];
@@ -795,8 +801,8 @@ function diyPickRows(ctx) {
         defaultSkillIndex: Math.max(0, (char.skills || []).length - 1), defaultUniEquipId: modules[0] || null, isHidden: false,
       };
       shop.diyPick = p.prototype ? 'prototype' : 'own';
-      rows.push({ chessId: a, shop, cd: { identifier: null, isGolden: false, status: { ...slotCd.status }, upgradeChessId: b, upgradeNum: slotCd.upgradeNum, bondIds: [...p.bonds], garrisonIds: [] } });
-      rows.push({ chessId: b, shop, cd: { identifier: null, isGolden: true, status: { ...slotGolden.status }, upgradeChessId: null, upgradeNum: 0, bondIds: [...p.bonds], garrisonIds: [] } });
+      rows.push({ chessId: a, shop, cd: { identifier: null, isGolden: false, status: { ...slotCd.status }, upgradeChessId: b, upgradeNum: slotCd.upgradeNum, bondIds: [...bonds], garrisonIds: [] } });
+      rows.push({ chessId: b, shop, cd: { identifier: null, isGolden: true, status: { ...slotGolden.status }, upgradeChessId: null, upgradeNum: 0, bondIds: [...bonds], garrisonIds: [] } });
     }
   }
   return rows;

@@ -38,6 +38,19 @@
 //                 not stack — `cathy:shield`, read by 凯瑟琳 S1 岁月锻打), in full whenever it takes a new operator,
 //                 refilled by shield_ratio_each_trigger /s when the target was not hit for `interval` s (always while
 //                 凯瑟琳's timed skill runs, owner bb overwrite_ratio)
+//   白铁™多功能平台 (白铁 S1 / S2, 甄选干员; hand pieces docked like a skill's summon: kits/picks.js gives them back)
+//                 untargetable, invulnerable devices on the operator their range reaches (1-1: the tile they face; each
+//                 device buffs its own operator, "支援装置的效果可叠加"): S1 platform ATK + talent atk (×白铁's fake_scale
+//                 while his S1 runs); S2 platform +1 SP every interval (白铁's fake_interval while his S2 runs) and loses
+//                 hp_ratio of its max HP per second (s2.hp_ratio — doubled — while his S2 runs); 白铁's module CRA-Y
+//                 "自身装置天赋生效的干员攻击速度+N" adds ASPD to that operator under every skill
+//   铁钳号·原型机 (白铁 S3) an enemy-side summon in the game ("可被我方干员攻击但不受伤害"), here an untargetable,
+//                 invulnerable piece of its owner: an allied operator whose range covers it and who has no enemy to
+//                 attack hits it once per attack interval [ASSUMED: the game's taunt −2 target] — +1 SP (受击回复), a
+//                 工匠's hit heals it hp_ratio; at full SP with an enemy in its range it loses its skill hp_ratio of max
+//                 HP and deals 白铁 ATK × atk_scale phys to the first target and × atk_scale_2 to the enemies within
+//                 IRON_CLAW_SPLASH tiles of it [ASSUMED radius: "周围小范围"]; the operator on the tile behind it takes
+//                 physical damage × (1 − damage_resistance)
 //   投递坐标 / 风雪之眼 / 保护目标  inert pieces (no attack; 风雪之眼 untargetable) — their effects belong to the owner kit
 //   炎佑 (enemy_9012_acloon)  flying ally: flies after the highest-aggro enemy of the field and hovers over it, stays
 //                 put when there is none; 3-target arts + burn on every hit, 元素脆弱 aura, 祛恶之焰 channel (yanyouKit)
@@ -105,6 +118,9 @@ export const TOKEN_IDS = Object.freeze({
   ulpiaMarker: 'token_10039_ulpia_block',
   goldenOath: 'token_10040_siege2_vlion',
   catShield: 'token_10041_cathy_catsld',
+  ironAtk: 'token_10027_ironmn_pile1',
+  ironSp: 'token_10027_ironmn_pile2',
+  ironClaw: 'token_10027_ironmn_pile3',
   deliveryTarget: 'token_10056_angel2_target',
   eagle1: 'token_10057_svash2_eagle1',
   eagle2: 'token_10057_svash2_eagle2',
@@ -1006,6 +1022,131 @@ function catShield(bb, raw, def) {
   };
 }
 
+/** The operator a 白铁 device reaches: the first live operator of its player on its range tiles (the tile it faces). */
+function ironTarget(battle, unit) {
+  for (const k of unit.rangeKeys || []) {
+    const a = battle.unitAt((k / COLS) | 0, k % COLS);
+    if (a && a !== unit && a.alive && a.deployed && a.kind === 'op' && a.ownerId === unit.ownerId) return a;
+  }
+  return null;
+}
+/** 白铁's module CRA-Y: "自身装置天赋生效的干员攻击速度+N" (only in the talent text). */
+function ironAspd(owner) {
+  for (const t of owner?.def?.raw?.talents ?? []) {
+    const m = /装置天赋生效的干员攻击速度\+(\d+(?:\.\d+)?)/.exec(String(t?.desc ?? ''));
+    if (m) return +m[1];
+  }
+  return 0;
+}
+const ironSkillOn = (owner, id) => !!(owner && owner.alive && owner.skill && owner.skill.active && owner.skill.id === id);
+const IRON_AURA = 0.2;
+/** 铁钳号's splash radius around its first target (tiles) [ASSUMED: "周围小范围"]. */
+export const IRON_CLAW_SPLASH = 1;
+
+/** 白铁™多功能平台, S1 (支援火力): ATK to the operator it faces; ×fake_scale while 白铁's S1 runs. */
+function ironAtk(bb, raw, def) {
+  const atk = num(talentBb(def, 'atk').atk, 0.12);
+  return {
+    skill: null,
+    trait: { noAttack: true },
+    install(battle, unit) {
+      untargetable(battle, unit);
+      battle.addBuff(unit, { key: 'token:ironDevice', flags: { invulnerable: true }, persist: true, allowDead: true });
+      battle.every(IRON_AURA, () => {
+        if (!unit.alive || !unit.deployed) return;
+        const a = ironTarget(battle, unit);
+        if (!a) return;
+        const o = ownerOf(unit);
+        const scale = ironSkillOn(o, 'skchr_ironmn_1') ? num(o.skill.bb?.fake_scale, num(bb.talent_scale, 1)) : 1;
+        battle.addBuff(a, { key: `ironmn:device:${unit.id}`, mods: { atkPct: atk * scale, aspd: ironAspd(o) }, duration: IRON_AURA + 0.05, source: unit });
+      }, { owner: unit });
+    },
+  };
+}
+
+/** 白铁™多功能平台, S2 (战地补给): +1 SP every interval to the operator it faces; it loses HP over time. */
+function ironSp(bb, raw, def) {
+  const iv = num(talentBb(def, 'default.interval')['default.interval'], 3.5);
+  const loss = num(talentBb(def, 'hp_ratio').hp_ratio, 0.004);
+  return {
+    skill: null,
+    trait: { noAttack: true },
+    install(battle, unit) {
+      untargetable(battle, unit);
+      battle.addBuff(unit, { key: 'token:ironDevice', flags: { invulnerable: true }, persist: true, allowDead: true });
+      let acc = 0;
+      battle.every(IRON_AURA, () => {
+        if (!unit.alive || !unit.deployed) return;
+        const o = ownerOf(unit);
+        const on = ironSkillOn(o, 'skchr_ironmn_2');
+        battle.loseHp(unit, unit.s.maxHp * (on ? num(bb['s2.hp_ratio'], loss * 2) : loss) * IRON_AURA, { tags: ['selfLoss'] });
+        const a = ironTarget(battle, unit);
+        if (!a) { acc = 0; return; }
+        battle.addBuff(a, { key: `ironmn:device:${unit.id}`, mods: { aspd: ironAspd(o) }, duration: IRON_AURA + 0.05, source: unit });
+        acc += IRON_AURA;
+        const need = on ? num(o.skill.bb?.fake_interval, num(bb['s2.interval'], iv)) : iv;
+        if (acc + 1e-9 >= need) { acc = 0; if (a.skill) a.skill.gainSp(1, 'device'); }
+      }, { owner: unit });
+    },
+  };
+}
+
+/** 铁钳号·原型机 (白铁 S3): allies charge it by attacking it; at full SP it strikes with 白铁's ATK. */
+function ironClaw(bb, raw, def) {
+  const guard = num(talentBb(def, 'damage_resistance').damage_resistance, 0.2);
+  return {
+    skill: null,
+    trait: { noAttack: true },
+    install(battle, unit) {
+      untargetable(battle, unit);
+      battle.addBuff(unit, { key: 'token:ironDevice', flags: { invulnerable: true }, persist: true, allowDead: true });
+      const v = variantOf(unit);
+      const heal = num(v?.trait?.bb?.hp_ratio, 0.01);
+      const cost = Math.max(1, num(v?.skill?.spCost, 5));
+      unit.mem.clawSp = 0;
+      const accs = new Map(); // ally id → attack progress on the claw
+      const key = () => tileKeyOf(unit);
+      const strike = () => {
+        const foes = battle.enemiesInKeys(unit.rangeKeys || [], unit, { canHitFly: false });
+        if (!foes.length) return false;
+        sortEnemyTargets(battle, unit, foes, null);
+        const t = foes[0];
+        const atk = ownerAtk(unit);
+        battle.loseHp(unit, unit.s.maxHp * num(bb.hp_ratio, 0.025), { tags: ['selfLoss'] });
+        battle.dealDamage(unit, t, { amount: atk * num(bb.atk_scale, 2.3), type: 'phys', isSkill: true, tags: ['skill', 'ironClaw'] });
+        for (const e of battle.foesInRadius(t.x, t.y, IRON_CLAW_SPLASH)) {
+          if (e !== t) battle.dealDamage(unit, e, { amount: atk * num(bb.atk_scale_2, 1.1), type: 'phys', isSkill: true, isSplash: true, tags: ['skill', 'ironClaw'] });
+        }
+        battle.fx('splash', { x: t.x, y: t.y, id: t.id });
+        return true;
+      };
+      battle.every(0.1, () => {
+        if (!unit.alive || !unit.deployed) return;
+        const k = key();
+        for (const a of battle.allies(unit.ownerId)) {
+          if (a === unit || a.kind !== 'op' || !a.alive || !a.deployed || a.profile?.heal) continue;
+          if (!(a.rangeKeys || []).includes(k) || battle.anyEnemyInKeys(a.rangeKeys || [])) { accs.delete(a.id); continue; }
+          const bat = num(a.s.bat, 1) * 100 / Math.max(1, num(a.s.aspd, 100));
+          const p = (accs.get(a.id) || 0) + 0.1 / Math.max(0.1, bat);
+          if (p < 1) { accs.set(a.id, p); continue; }
+          accs.set(a.id, p - 1);
+          unit.mem.clawSp = Math.min(cost, unit.mem.clawSp + 1);
+          if (a.def?.subProfessionId === 'craftsman' || a.def?.raw?.subProfessionId === 'craftsman') battle.heal(a, unit, unit.s.maxHp * heal);
+        }
+        if (unit.mem.clawSp >= cost && strike()) unit.mem.clawSp = 0;
+      }, { owner: unit });
+      // 团结的力量: the operator on the tile behind it takes less physical damage
+      battle.every(IRON_AURA, () => {
+        if (!unit.alive || !unit.deployed) return;
+        const [fr, fc] = unit.fwd;
+        const a = battle.unitAt(unit.tileR - fr, unit.tileC - fc);
+        if (a && a.alive && a.kind === 'op' && a.side === 'ally') battle.addBuff(a, { key: `ironmn:guard:${unit.id}`, mods: { physTakenMul: Math.max(0, 1 - guard) }, duration: IRON_AURA + 0.05, source: unit });
+      }, { owner: unit });
+    },
+  };
+}
+const tileKeyOf = (u) => Math.round(u.y) * COLS + Math.round(u.x);
+
 // ---------------------------------------------------------------------------------------------------------------
 // 炎佑 (enemy_9012_acloon as an ally)
 
@@ -1366,6 +1507,9 @@ const RAW_KITS = {
   [TOKEN_IDS.ulpiaMarker]: ulpiaMarker,
   [TOKEN_IDS.goldenOath]: goldenOath,
   [TOKEN_IDS.catShield]: catShield,
+  [TOKEN_IDS.ironAtk]: ironAtk,
+  [TOKEN_IDS.ironSp]: ironSp,
+  [TOKEN_IDS.ironClaw]: ironClaw,
   [TOKEN_IDS.deliveryTarget]: inert({ hideFromEnemies: true }),
   [TOKEN_IDS.eagle1]: inert({ hideFromEnemies: true }),
   [TOKEN_IDS.eagle2]: inert({ hideFromEnemies: true }),
