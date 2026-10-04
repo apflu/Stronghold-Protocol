@@ -30,7 +30,7 @@ function seats(picks, { humans = 1, bots = 0 } = {}) {
 
 test('data: every pick is a full chess at the official DIY slot status, hidden from the season pool', () => {
   const picks = Object.values(DATA.chess).filter((c) => c.diyPick);
-  assert.equal(picks.length, 56);
+  assert.equal(picks.length, 64);
   const slot = (tier, golden) => chess(`chess_char_${tier}_diy1_${golden ? 'b' : 'a'}`);
   for (const c of picks) {
     assert.ok(c.isDiy && !c.visible, `${c.chessId}: never a season chess`);
