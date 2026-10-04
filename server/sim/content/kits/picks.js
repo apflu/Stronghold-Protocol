@@ -12,8 +12,15 @@
 //            within 1.3 tiles of a ground enemy knocked down inside her range while the skill runs; 降临's 命中率 −30 % =
 //            an attack of a ground enemy in her range misses (is cancelled) with that chance — whoever it targets; a miss
 //            on her or one of her dodges heals 5 % max HP; 高台 = a HIGH tile among the 4 orthogonal neighbours.
+//  白铁      his devices are the player's hand pieces (two deployed of three carried — 战地工程师), docked on their tiles like a
+//            skill's summon (tokens.js dockSkillSummons): "获得一个装置" puts one in stock and a docked piece takes its own
+//            tile again (releaseSkillSummon; stock ≤ the carried devices not standing); the third device starts in stock;
+//            节约经费's recovery puts a device that leaves within his 8 surrounding tiles back in stock (prob); S1's end
+//            destroys every S1 device on the field (they may come back the same way). The devices' own rules are
+//            tokens.js (白铁™多功能平台 / 铁钳号·原型机).
 
 import { bodyInKeys } from '../../body.js';
+import { releaseSkillSummon, TOKEN_IDS } from '../tokens.js';
 
 const AURA = 0.2;          // aura refresh period (s)
 const AURA_DUR = 0.25;     // aura buff lifetime (s): lapses ~1 tick after the source stops refreshing it
@@ -161,8 +168,86 @@ function ascalon(bb, chess, def) {
   };
 }
 
+// ===== 白铁 (craftsman) S3 铁钳号·原型机 — a device now, ATK +40 %, ASPD +40 (devices: 铁钳号·原型机)
+//       S1 极致火力 (a device now, attacks at attack@atk_scale, device effect ×fake_scale; at the end every device on the
+//       field is destroyed — devices: ATK platforms); S2 高效补给 (ATK/DEF +40 %, hits every blocked enemy, devices faster
+//       SP; a device at the end — devices: SP platforms); talents 战地工程师 (carry cnt, deploy 2 — data) / 节约经费 (SP
+//       regen +0.2/s while a device of his stands on his 8 surrounding tiles; such a device leaving comes back to stock
+//       with prob); module CRA-X carries one device more
+const IRON_DEVICE = Object.freeze({ skchr_ironmn_1: TOKEN_IDS.ironAtk, skchr_ironmn_2: TOKEN_IDS.ironSp, skchr_ironmn_3: TOKEN_IDS.ironClaw });
+const IRON_DEVICES = new Set(Object.values(IRON_DEVICE));
+function ironmn(bb, chess, def) {
+  const t0 = tbb(def, 0), t1 = tbb(def, 1);
+  const device = IRON_DEVICE[selId(def)] || TOKEN_IDS.ironClaw;
+  const craX = !!(def?.raw?.module?.active && def.raw.module.id === 'uniequip_002_ironmn');
+  const carry = Math.max(1, Math.floor(num(t0.cnt, 3))) + (craX ? 1 : 0);
+  const recoverP = num(t1.prob, 0);
+  // the SP part of 节约经费 exists in the talent text only ("技力回复速度+0.2/秒")
+  const spMatch = (def?.raw?.talents ?? []).map((t) => /技力回复速度\+(\d+(?:\.\d+)?)/.exec(String(t?.desc ?? ''))).find(Boolean);
+  const spRegen = spMatch ? +spMatch[1] : 0;
+  const mine = (battle, unit) => battle.allyUnits.filter((t) => t.kind === 'token' && t.ownerUnit === unit && IRON_DEVICES.has(t.defId));
+  const near = (unit, t) => Math.abs(t.tileR - unit.tileR) <= 1 && Math.abs(t.tileC - unit.tileC) <= 1 && t !== unit;
+  /** "获得一个装置": one more in stock (≤ the carried ones not standing) and a docked piece takes the field. */
+  const gain = (battle, unit) => {
+    const standing = mine(battle, unit).filter((t) => t.alive && t.defId === device).length;
+    return releaseSkillSummon(battle, unit, device, { cap: Math.max(1, carry - standing) });
+  };
+  return {
+    skills: alt(def, {
+      skchr_ironmn_1: () => ({
+        kind: 'duration',
+        attack: { atkScale: num(bb['attack@atk_scale'], 1.4) },
+        onStart({ battle, unit }) { gain(battle, unit); battle.fx('overclock', { x: unit.x, y: unit.y, id: unit.id }); },
+        onEnd({ battle, unit }) {
+          for (const t of mine(battle, unit)) if (t.alive && t.defId === TOKEN_IDS.ironAtk) battle.retreat(t, { reason: 'destroyed' });
+        },
+      }),
+      skchr_ironmn_2: () => ({
+        kind: 'duration',
+        mods: { atkPct: num(bb.atk), defPct: num(bb.def) },
+        attack: { hitAllBlocked: true },
+        onStart({ battle, unit }) { battle.fx('overclock', { x: unit.x, y: unit.y, id: unit.id }); },
+        onEnd({ battle, unit }) { if (unit.alive) gain(battle, unit); },
+      }),
+    }),
+    skill: {
+      kind: 'duration',
+      mods: { atkPct: num(bb.atk), aspd: num(bb.attack_speed) },
+      onStart({ battle, unit }) { gain(battle, unit); battle.fx('overclock', { x: unit.x, y: unit.y, id: unit.id }); },
+    },
+    talents: [
+      { install(battle, unit) { // 战地工程师: the carried device that is not on the board starts in stock
+        battle.on('deploy', (c) => {
+          if (c.unit !== unit || unit.mem.ironStocked) return;
+          unit.mem.ironStocked = true;
+          const placed = mine(battle, unit).filter((t) => t.defId === device && t.mem.docked).length;
+          if (!placed) return; // no piece placed: the devices never appear
+          const stock = unit.mem.summonStock || (unit.mem.summonStock = {});
+          stock[device] = Math.max(stock[device] || 0, carry - placed);
+        }, { owner: unit });
+      } },
+      { install(battle, unit) { // 节约经费
+        if (spRegen > 0) {
+          whileDeployed(battle, unit, AURA, () => {
+            if (mine(battle, unit).some((t) => t.alive && t.deployed && near(unit, t))) pulse(battle, unit, 'ironmn:t2', { spRecoveryFlat: spRegen });
+          });
+        }
+        battle.on('death', (c) => {
+          const t = c.unit;
+          if (!t || t.ownerUnit !== unit || !IRON_DEVICES.has(t.defId) || !unit.alive || !unit.deployed || !near(unit, t)) return;
+          if (!(recoverP > 0) || battle.rng() >= recoverP) return;
+          battle.fx('summon', { x: unit.x, y: unit.y, id: unit.id, token: t.defId });
+          // after the removal bookkeeping (the dock's own death handler sets the redeploy time first)
+          battle.after(0, () => { if (unit.alive) gain(battle, unit); }, { owner: unit });
+        }, { owner: unit });
+      } },
+    ],
+  };
+}
+
 const KITS = {};
 for (const tier of [5, 6]) {
   KITS[`chess_pick${tier}_char_4132_ascln_a`] = ascalon;
+  KITS[`chess_pick${tier}_char_4072_ironmn_a`] = ironmn;
 }
 export default KITS;

@@ -9,7 +9,7 @@ import { validateC2S, checkPicks, checkLoadout, PICK_LIMITS } from '../../shared
 import { SharedPool } from '../../server/match/pool.js';
 import { createRng } from '../../server/sim/rng.js';
 import { makeBattle } from '../helpers/battleHarness.js';
-import { DATA, makeMatch, checkInvariants } from './harness.js';
+import { DATA, makeMatch, checkInvariants, give, legalTileFor } from './harness.js';
 
 const chess = (id) => (Object.hasOwn(DATA.chess, id) ? DATA.chess[id] : null);
 const IRON5 = 'chess_pick5_char_4072_ironmn_a'; // 白铁 at V (an operator of the player's own)
@@ -163,6 +163,26 @@ test('an illegal seat pick list (stale data) is dropped with a warning', () => {
   assert.deepEqual(h.ps('p_0').picks, []);
   assert.ok(h.logs.warn.some((w) => /picks/.test(w)));
   h.m.dispose();
+});
+
+test('白铁 on the board sends two devices of his skill to the hand (S3: 铁钳号, S1: the ATK platform)', () => {
+  for (const [skill, token] of [[null, 'token_10027_ironmn_pile3'], [0, 'token_10027_ironmn_pile1']]) {
+    const loadout = skill == null ? null : checkLoadout({ [IRON6]: { skill } }, chess).loadout;
+    const h = makeMatch({ mode: 'solo', seats: [{ seat: 0, playerId: 'p_0', name: 'P0', isBot: false, connected: true, loadout }], seed: 6 }).start();
+    h.toPrep(1);
+    const ps = h.ps('p_0');
+    for (const p of [...ps.board.values()]) ps.returnCopies(p);
+    ps.board.clear();
+    ps.hand.fill(null);
+    ps.recompute();
+    const iron = give(h.m, ps, IRON6);
+    const at = legalTileFor(h.m, ps, IRON6);
+    assert.deepEqual(h.m.handle('p_0', { t: 'g.move', uid: iron.uid, to: { area: 'board', row: at[0], col: at[1] } }), { ok: true });
+    const stacks = ps.hand.filter((p) => p && p.kind === 'token');
+    assert.deepEqual(stacks.map((p) => [p.id, p.count]), [[token, 2]], `skill ${skill}: the devices of that skill, two (战地工程师)`);
+    checkInvariants(h.m);
+    h.m.dispose();
+  }
 });
 
 // ---- battle ----------------------------------------------------------------------------------------------------------

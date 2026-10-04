@@ -137,3 +137,120 @@ test('阿斯卡纶 elite module AMB-Y: 65 % dodge; a marked enemy dying heals he
   assert.ok(u.hp >= u.s.maxHp * 0.6 - 1, `healed (${(u.hp / u.s.maxHp).toFixed(2)})`);
   clean(h);
 });
+
+// ---- 白铁 ------------------------------------------------------------------------------------------------------------
+
+const IRON = 'chess_pick6_char_4072_ironmn_a';
+const ALLY = 'chess_char_1_02_a'; // 角峰
+const P1 = 'token_10027_ironmn_pile1', P2 = 'token_10027_ironmn_pile2', P3 = 'token_10027_ironmn_pile3';
+/** 白铁 on (10,4) facing right, an ally in front of him on (10,5), a device on (9,5) facing up onto the ally (rows grow upward). */
+const ironBattle = (skillIndex, device, o = {}) => makeBattle({
+  defs: { enemies: { enemy_dummy: dummy(), ...(o.enemies || {}) } },
+  units: [
+    { chessId: o.chessId ?? IRON, row: 10, col: 4, uid: 1, skillIndex, ...(o.moduleId ? { moduleId: o.moduleId } : {}) },
+    { chessId: ALLY, row: 10, col: 5, uid: 2 },
+    { kind: 'token', tokenId: device, ownerUid: 1, row: 9, col: 5, uid: 3, dir: 'UP' },
+    ...(o.units || []),
+  ],
+  enemies: o.spawn || [], hooks: ['damaged', 'death', 'deploy'], captureNoisy: true, autoFinish: false, timeLimit: o.timeLimit ?? 120,
+});
+const devicesOf = (h, id) => h.b.allyUnits.filter((t) => t.defId === id);
+
+test('registry: 白铁 runs his own kit at V and VI; his S3 device is 铁钳号, S1/S2 the platforms', () => {
+  for (const id of ['chess_pick5_char_4072_ironmn_a', IRON]) assert.ok(KITS[id], id);
+  const h = ironBattle(undefined, P3);
+  h.step();
+  assert.equal(h.unit(IRON).kit.generic, undefined);
+  clean(h);
+});
+
+test('白铁 S1 极致火力: the platform gives its operator ATK +12 %, ×fake_scale during S1; S1 ends ⇒ the devices are destroyed', () => {
+  const h = ironBattle(0, P1);
+  h.run(0.5);
+  const u = h.unit(IRON), a = h.unit(ALLY);
+  const [dev] = devicesOf(h, P1);
+  assert.ok(dev && dev.alive && dev.deployed, 'the placed platform stands');
+  assert.ok(dev.s.flags.untargetable && dev.s.flags.invulnerable, '不会受到攻击');
+  const atk = h.b.data.getToken(P1, u.defId).talents[0].bb.atk;
+  approx(a.s.atk, a.base.atk * (1 + atk), 1e-6, 'ATK +12 %');
+  assert.ok(u.skill.activate('test', { free: true }), 'S1');
+  h.run(0.3);
+  approx(a.s.atk, a.base.atk * (1 + atk * bbOf(u).fake_scale), 1e-6, '×fake_scale');
+  assert.ok(h.runUntil(() => !u.skill.active, 40));
+  h.run(0.1);
+  assert.ok(!dev.alive, 'destroyed at the end');
+  assert.equal(dev.removeReason, 'destroyed');
+  clean(h);
+});
+
+test('白铁 S2 高效补给: the platform gives +1 SP every 3.5 s and wears down; S2 ATK/DEF up, every blocked enemy, a device at the end', () => {
+  const h = ironBattle(1, P2);
+  h.run(0.2);
+  const u = h.unit(IRON), a = h.unit(ALLY);
+  const [dev] = devicesOf(h, P2);
+  const tb = h.b.data.getToken(P2, u.defId).talents;
+  const iv = tb.find((t) => t.bb['default.interval'] != null).bb['default.interval'];
+  const loss = tb.find((t) => t.bb.hp_ratio != null).bb.hp_ratio;
+  a.skill.sp = 0;
+  const sp0 = a.skill.sp, hp0 = dev.hp, t0 = h.b.time;
+  h.run(iv * 2 + 0.25);
+  const natural = (h.b.time - t0) * (a.s.spRecovery ?? 1) * (a.skill.spType === 'time' ? 1 : 0);
+  assert.ok(a.skill.sp - sp0 >= natural + 2 - 1e-6 || a.skill.active, `two device SP (${(a.skill.sp - sp0).toFixed(2)} vs natural ${natural.toFixed(2)})`);
+  approx(hp0 - dev.hp, dev.s.maxHp * loss * (h.b.time - t0), 0.1, 'loses hp_ratio of its max HP per second');
+  const atk0 = u.s.atk, def0 = u.s.def;
+  assert.ok(u.skill.activate('test', { free: true }), 'S2');
+  approx(u.s.atk, atk0 * (1 + bbOf(u).atk), 1e-6, 'ATK');
+  approx(u.s.def, def0 * (1 + bbOf(u).def), 1e-6, 'DEF');
+  // the device is gone (destroyed by hand): S2's end gives one back on its tile
+  h.b.retreat(dev, { reason: 'destroyed' });
+  assert.ok(h.runUntil(() => !u.skill.active, 40));
+  assert.ok(h.runUntil(() => dev.alive && dev.deployed, 15), 'the platform takes its tile again');
+  clean(h);
+});
+
+test('白铁 S3 铁钳号: allies with nothing to hit charge it; at full SP it strikes with 白铁 ATK × atk_scale; the operator behind takes −20 % phys', () => {
+  const h = makeBattle({
+    defs: { enemies: { enemy_dummy: dummy() } },
+    units: [
+      { chessId: IRON, row: 10, col: 4, uid: 1 },
+      { kind: 'token', tokenId: P3, ownerUid: 1, row: 10, col: 5, uid: 3, dir: 'RIGHT' },
+    ],
+    enemies: [{ key: 'enemy_dummy', pos: [10, 7] }], hooks: ['damaged'], captureNoisy: true, autoFinish: false, timeLimit: 60,
+  });
+  h.run(0.3);
+  const u = h.unit(IRON);
+  const [claw] = devicesOf(h, P3);
+  assert.ok(claw.alive && claw.deployed, '铁钳号 stands in front of him');
+  assert.ok(claw.s.flags.untargetable && claw.s.flags.invulnerable);
+  const sk = h.b.data.getToken(P3, u.defId).skill;
+  approx(u.s.physTakenMul ?? 1, 1 - h.b.data.getToken(P3, u.defId).talents[0].bb.damage_resistance, 1e-6, '团结的力量 on the tile behind');
+  assert.ok(h.runUntil(() => tagged(h, 'ironClaw').length > 0, 30), 'it strikes');
+  const main = tagged(h, 'ironClaw').find((c) => !c.dmg.isSplash);
+  approx(main.dmg.amount, u.s.atk * sk.bb.atk_scale, 0.02, '白铁 ATK × atk_scale');
+  assert.ok(claw.hp < claw.s.maxHp, 'firing costs it HP');
+  clean(h);
+});
+
+test('白铁 节约经费 (elite, module CRA-X): +0.2 SP/s while a device of his stands beside him; a device leaving beside him comes back (prob)', () => {
+  // the SP part is CRA-X's upgrade of the talent (PRTS 铁钳号·爬行者); without the module the elite only recovers devices
+  const IRON_E = 'chess_pick6_char_4072_ironmn_b';
+  const h = ironBattle(0, P1, { chessId: IRON_E });
+  h.run(0.5);
+  const u = h.unit(IRON_E);
+  const regen = u.buffs.find((b) => b.key === 'ironmn:t2');
+  assert.ok(regen, 'SP regen buff');
+  approx(regen.mods.spRecoveryFlat, 0.2, 1e-6, '+0.2/s (talent text)');
+  const plain = ironBattle(0, P1, { chessId: IRON_E, moduleId: 'none' });
+  plain.run(0.5);
+  assert.ok(!plain.unit(IRON_E).buffs.some((b) => b.key === 'ironmn:t2'), 'no module: no SP regen');
+  const [dev] = devicesOf(h, P1);
+  // destroy it a few times: with prob 0.9 (plus the third device in stock) it keeps coming back on its tile
+  let back = 0;
+  for (let i = 0; i < 4; i++) {
+    if (!dev.alive) break;
+    h.b.retreat(dev, { reason: 'destroyed' });
+    if (h.runUntil(() => dev.alive, 15)) back++;
+  }
+  assert.ok(back >= 2, `came back ${back}×`);
+  clean(h);
+});
