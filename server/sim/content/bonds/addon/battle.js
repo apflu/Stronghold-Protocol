@@ -44,7 +44,7 @@
 //                      “倒地干员”…自动部署至该位置"; its own home when it fell on another board piece's home);
 //                      L ≥ power_bond_stack_cnt: every operator ASPD +power_attack_speed
 //   不屈 indomShip     ground operator knocked out → p = min(1, base + per·L) immediate free redeploy where it lies
-//                      (the engine's rest tile); tier 2: every operator on the field +sp SP
+//                      (the engine's rest tile); tier 2: every operator on the field +sp SP (a knock-out or a 突袭 jump)
 //   协防 emptyShip     all operators phys/arts taken ×(1 − damage_resistance); members dealt ×damage_scale_normal
 //                      (elite ×damage_scale_extra)
 //   独行 soloShip      the member(s) ATK +atk, HP +max_hp, +sp SP on every deploy
@@ -440,7 +440,9 @@ export function install(battle) {
   // `dollSwap`, to the 替身 and back) rolls too; she stays on the field, so a hit only zeroes her NEXT deployment: the
   // next time she leaves the field (knocked out, withdrawn) she is back at once and free (`u.mem.indomFreeDeploy`)
   // [ASSUMED: one such deployment at a time, spent by her next deployment whatever brings it]. Tier 2 (+sp SP to every
-  // operator on the field) stays a knock-out effect: its own line ("地面干员被击倒时使场上所有干员技力+5") was not corrected.
+  // operator on the field): a knock-out, and the 突袭 jump's retreat — its line ("地面干员被击倒时使场上所有干员技力+5") was not
+  // corrected on PRTS, but a player's video of the official mode shows a 突袭 jump giving it (players' report, owner's
+  // decision 2026-10-05); the jumper itself is off the field at that instant and lands with its own SP (keepSp).
   // Both lines take a 地面干员 = a melee-position operator on any tile (support isGroundOp: 歌蕾蒂娅 on a 高台 counts, a
   // ranged operator on a melee tile does not — community report 「不屈盟约效果高台干员也错误的吃到了」, 0.1.3).
   if (has(ID.indom)) {
@@ -449,13 +451,15 @@ export function install(battle) {
     battle.on('death', (c) => {
       const u = c.unit;
       const banked = !!(u && u.mem && u.mem.indomFreeDeploy);
-      if (!INDOM_EXITS.has(c.reason) || !(stOf(u) || (banked && u.kind === 'op'))) return;
+      const raid = c.reason === 'raid';
+      if (!(INDOM_EXITS.has(c.reason) || raid) || !(stOf(u) || (banked && u.kind === 'op'))) return;
       const st = stOf(u);
       const bb = st ? st.bb[ID.indom] : null;
-      if (st && c.reason === 'killed' && st.tiers[ID.indom] >= 2) {
+      if (st && (c.reason === 'killed' || raid) && st.tiers[ID.indom] >= 2) {
         const sp = num(bb.sp);
         if (sp > 0) for (const o of st.ops) if (onField(o) && o.skill) o.skill.gainSp(sp, 'bond');
       }
+      if (raid) return; // the jump redeploys it anyway: no 重新部署 roll
       if (u.alive || u.removed || u.mem[ID.indom] === battle.time) return;
       if (banked || (st && battle.rng() < prob(bb, L(battle, st, ID.indom)))) {
         u.mem[ID.indom] = battle.time;
