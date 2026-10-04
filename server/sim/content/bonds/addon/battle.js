@@ -58,6 +58,7 @@ import { canTargetEnemy, extendedGrid } from '../../../targeting.js';
 import { normDir, rotateOffset, localOrder, localBefore } from '../../../dir.js';
 import { bodyKeys } from '../../../body.js';
 import { isHpLoss } from '../../../damage.js';
+import { ironClawsOf } from '../../tokens.js';
 import {
   num, bondRecord, buffParams, bondTier, bondLayers, isMember, isElite, isGroundOp, onField, playerOps, passiveBuff,
   fxOn, N4, N8, directMods, COLS,
@@ -301,7 +302,9 @@ function raidTargets(battle, u, pid) {
   const list = own.length ? own : other;
   const dist = new Map(list.map((e) => [e, num(battle.remainingDistance ? battle.remainingDistance(e) : 0)]));
   list.sort((a, b) => dist.get(a) - dist.get(b) || a.id - b.id);
-  return list;
+  // the player's 铁钳号 (白铁 S3, an enemy-side summon in the game) last: a jump to it when no enemy can be reached
+  // (players' report: 突袭 should take it as a target) — it charges by being hit (content/tokens.js ironClaw)
+  return list.concat(ironClawsOf(battle, pid));
 }
 
 function raidPoll(battle, st) {
@@ -315,6 +318,7 @@ function raidPoll(battle, st) {
     const idleOk = battle.time - since >= idle - 1e-9;
     if (!(ready || idleOk)) continue;
     if (battle.enemiesInKeys(u.rangeKeys || [], u, u.profile).length) continue;
+    if (ironClawsOf(battle, st.pid).some((t) => (u.rangeKeys || []).includes(Math.round(t.y) * COLS + Math.round(t.x)))) continue; // busy on a 铁钳号
     const list = (targets ??= raidTargets(battle, u, st.pid));
     if (!list.length) continue;
     // either trigger: raidTile only offers tiles with the target in range (without that a ready skill that finds no
