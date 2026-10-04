@@ -26,8 +26,9 @@ import { PHASE } from '../../../shared/constants.js';
 import {
   MODULE_NONE, PROF_ORDER, PROF_NAME, rosterOf, filterRoster, recordsOf, chessOptions, effectiveChoice, setChoice, resetChoice,
   changedCount, skillLabel, moduleBadge, attrRows, skillTags, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES,
+  isPickRecord, picksByTier, pickCandidates, canPick, setPick, PICK_LIMITS,
 } from '../ui/loadoutModel.js';
-import { loadoutStore, openLoadout, closeLoadout, setEntries, applyLoadoutEntries } from '../ui/loadoutSync.js';
+import { loadoutStore, openLoadout, closeLoadout, setEntries, setPicks, applyLoadoutEntries } from '../ui/loadoutSync.js';
 import { copyText } from '../ui/clipboard.js';
 import { toast } from '../ui/toasts.js';
 
@@ -334,6 +335,64 @@ function Detail({ m, chess, golden, entries, onChange, onReset, locked }) {
   </aside>`;
 }
 
+// ---- 甄选干员 (DIY picks) ---------------------------------------------------------------------------------------------------
+//
+// Official rule (卫戍协议 甄选): two extra slots at 调度中心 V and two at VI; a pick joins the player's own supply pool from
+// that level on ("甄选干员放入后模拟中的补给池随机范围也将被相应扩大"). The strip shows the four slots above the roster; a
+// filled slot selects its operator in the detail (skills / modules are chosen as for any operator), × empties it, an empty
+// slot opens the picker of its tier.
+
+function PickStrip({ m, picks, entries, selId, getChess, onSelect, onOpen, onRemove }) {
+  const by = picksByTier(picks, getChess);
+  return html`<section class="lo-picks" aria-label="甄选干员">
+    <header class="lo-picks__head">
+      <h3>甄选干员<${MicroLabel}>SELECTION<//></h3>
+      <span class="lo-picks__note">调度中心升至对应等级后，加入你的招募池（招募范围相应扩大）</span>
+    </header>
+    <div class="lo-picks__rows">
+      ${PICK_LIMITS.tiers.map((tier) => html`<div key=${tier} class="lo-picks__row" data-tier=${tier}>
+        <span class="lo-picks__tier"><${TierChip} tier=${tier} size="sm" /></span>
+        ${Array.from({ length: PICK_LIMITS.perTier }, (_, i) => {
+          const id = by[tier][i] || null;
+          const c = id ? getChess(id) : null;
+          if (!c) {
+            return html`<button key=${i} type="button" class="lo-pick lo-pick--empty" data-slot=${`${tier}-${i}`}
+              onClick=${() => onOpen(tier, Math.min(i, by[tier].length))} title=${`选择 ${ROMAN[tier]} 阶甄选干员`}>
+              <${Icon} name="plus" /><span>甄选</span></button>`;
+          }
+          return html`<div key=${i} class="lo-pick" data-slot=${`${tier}-${i}`}>
+            <${RosterCard} m=${m} chess=${c} golden=${c.goldenId ? getChess(c.goldenId) : null} entries=${entries}
+              selected=${id === selId} onPick=${onSelect} />
+            <button type="button" class="lo-pick__swap" title="更换" aria-label="更换" onClick=${() => onOpen(tier, i)}><${Icon} name="refresh" /></button>
+            <button type="button" class="lo-pick__x" title="移除" aria-label="移除" onClick=${() => onRemove(tier, i)}><${Icon} name="close" /></button>
+          </div>`;
+        })}
+      </div>`)}
+    </div>
+  </section>`;
+}
+
+function PickPicker({ m, slot, picks, getChess, onPick, onClose }) {
+  const list = pickCandidates(data.list('chess'), slot.tier);
+  const cur = picksByTier(picks, getChess)[slot.tier][slot.index] || null;
+  return html`<${Modal} open=${true} onClose=${onClose} title=${`${ROMAN[slot.tier]} 阶甄选干员`} micro="SELECTION"
+      actions=${html`<${Button} variant="ghost" onClick=${onClose}>取消<//>`}>
+    <p class="lo-io__hint">同一名干员只能占一个甄选位；原型干员可以同时放进 V 阶和 VI 阶。</p>
+    <div class="lo-pickgrid" role="listbox" aria-label="可甄选的干员">
+      ${list.map((c) => {
+        const ok = c.chessId === cur || canPick(picks, slot.tier, slot.index, c.chessId, getChess);
+        return html`<button key=${c.chessId} type="button" role="option" aria-selected=${c.chessId === cur ? 'true' : 'false'}
+            class=${cx('lo-card', `lo-card--t${c.tier}`, c.chessId === cur && 'is-sel')} data-chess=${c.chessId} disabled=${!ok}
+            onClick=${() => onPick(c.chessId)} title=${ok ? c.name : `${c.name}：已占用一个甄选位`}>
+          <span class="lo-card__art"><${Img} src=${chessAvatarUrl(m, c)} fallback=${html`<span class="lo-card__glyph">${[...(c.name || '?')][0]}</span>`} /></span>
+          <span class="lo-card__name">${c.name}</span>
+          <span class="lo-card__kit lo-pickgrid__tag">${c.diyPick === 'prototype' ? '原型' : PROF_NAME[c.profession] || ''}</span>
+        </button>`;
+      })}
+    </div>
+  <//>`;
+}
+
 // ---- filters -------------------------------------------------------------------------------------------------------------
 
 function Filters({ m, filters, onFilters, bonds }) {
@@ -392,7 +451,7 @@ function LoadoutScreen({ st }) {
       .sort((a, b) => (b.isCore ? 1 : 0) - (a.isCore ? 1 : 0) || (a.bondOrder ?? 0) - (b.bondOrder ?? 0) || String(a.name).localeCompare(String(b.name), 'zh'));
   }, [ready, roster]);
   const list = filterRoster(roster, st.filters, st.entries, getChess, getBond);
-  const selId = st.sel && roster.some((c) => c.chessId === st.sel) ? st.sel : list[0]?.chessId || roster[0]?.chessId || null;
+  const selId = st.sel && (roster.some((c) => c.chessId === st.sel) || isPickRecord(getChess(st.sel))) ? st.sel : list[0]?.chessId || roster[0]?.chessId || null;
   const { base, golden } = selId ? recordsOf(selId, getChess) : { base: null, golden: null };
   const nChanged = changedCount(st.entries, getChess);
   const locked = (inMatch && phase && phase !== PHASE.INFO_CHECK && phase !== PHASE.LOBBY) || st.sync === 'locked';
@@ -400,10 +459,18 @@ function LoadoutScreen({ st }) {
   const fileRef = useRef(null);                            // hidden <input type=file> of the 导入 dialog
   const [narrowDetail, setNarrowDetail] = useState(false); // phones: the detail slides over the roster
   const [io, setIo] = useState(null);                      // 导出 / 导入 dialog: { mode, text } | null
+  const [pickSlot, setPickSlot] = useState(null);          // 甄选 picker: { tier, index } | null
 
   const pick = (id) => { loadoutStore.set({ sel: id }); setNarrowDetail(true); };
   const change = (patch) => { if (base) setEntries(setChoice(loadoutStore.get().entries, base, golden, patch)); };
   const resetOne = () => { if (base) setEntries(resetChoice(loadoutStore.get().entries, base.chessId)); };
+  const choosePick = (id) => {
+    if (!pickSlot) return;
+    setPicks(setPick(loadoutStore.get().picks, pickSlot.tier, pickSlot.index, id, getChess));
+    setPickSlot(null);
+    pick(id);
+  };
+  const removePick = (tier, index) => setPicks(setPick(loadoutStore.get().picks, tier, index, null, getChess));
   const resetAll = async () => {
     if (!nChanged) return;
     const ok = await confirmDialog({ title: '全部恢复默认', text: `将 ${nChanged} 名干员的技能与模组恢复为默认配置？`, okText: '恢复默认', danger: true });
@@ -497,6 +564,8 @@ function LoadoutScreen({ st }) {
     <p class=${cx('lo-note', locked && 'is-locked')}><${Icon} name="info" />${locked ? '本局的调配已锁定（确认本局信息后无法修改），修改将在下一局生效' : fromText}</p>
     ${!ready ? html`<div class="lo-loading"><${Spinner} size="sm" />正在载入干员数据（打开页面后仅载入一次）…</div>` : html`<main class=${cx('lo-body', narrowDetail && 'is-detail')}>
       <section class="lo-roster">
+        <${PickStrip} m=${m} picks=${st.picks} entries=${st.entries} selId=${selId} getChess=${getChess}
+          onSelect=${pick} onOpen=${(tier, index) => setPickSlot({ tier, index })} onRemove=${removePick} />
         <${Filters} m=${m} filters=${st.filters} bonds=${bonds} onFilters=${(filters) => loadoutStore.set({ filters })} />
         <div class="lo-grid" role="listbox" aria-label="干员列表" ref=${gridRef}>
           ${list.length ? list.map((c) => html`<${RosterCard} key=${c.chessId} m=${m} chess=${c} golden=${c.goldenId ? getChess(c.goldenId) : null}
@@ -526,6 +595,8 @@ function LoadoutScreen({ st }) {
         onInput=${(e) => setIo({ mode: io.mode, text: e.currentTarget.value })}></textarea>
       <input type="file" accept=".json,application/json,text/plain" class="lo-io__file" ref=${fileRef} onChange=${ioFile} />
     <//>` : null}
+  ${pickSlot && ready ? html`<${PickPicker} m=${m} slot=${pickSlot} picks=${st.picks} getChess=${getChess}
+      onPick=${choosePick} onClose=${() => setPickSlot(null)} />` : null}
 <//>`;
 }
 
