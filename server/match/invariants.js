@@ -89,8 +89,8 @@ export function collectViolations(m, { limit = 25 } = {}) {
         }
         const maxCopies = rec.isGolden ? gd.goldenCopies : 1;
         if (!Number.isInteger(p.poolCopies) || p.poolCopies < 0 || p.poolCopies > maxCopies) fail(`${id}: ${p.id} holds ${p.poolCopies} copies`);
-        const base = gd.baseIdOf(p.id);
-        held.set(base, (held.get(base) || 0) + (p.poolCopies || 0));
+        const key = p.poolKey ?? gd.baseIdOf(p.id); // a 甄选 pick's copies belong to its owner's entry (pool.js)
+        held.set(key, (held.get(key) || 0) + (p.poolCopies || 0));
       } else if (p.kind === 'item') {
         if (!gd.item(p.id)) fail(`${id}: unknown item ${p.id}`);
         countItem(p);

@@ -483,8 +483,8 @@ function applyDefault(m, ps, card) {
         break;
       case 'single_special_choice_gain_bond_chess': {
         for (let i = 0; i < count; i++) {
-          const id = m.pool.roll(m.rngMeta, { maxTier: Math.max(1, ps.shop.level), picks: ps.picks, filter: (cid) => { const c = gd.chess(cid); return !!(c && Array.isArray(c.bonds) && c.bonds.includes(bs.bond)); } })
-            || m.pool.roll(m.rngMeta, { maxTier: 6, picks: ps.picks, filter: (cid) => { const c = gd.chess(cid); return !!(c && Array.isArray(c.bonds) && c.bonds.includes(bs.bond)); } });
+          const id = m.pool.roll(m.rngMeta, { maxTier: Math.max(1, ps.shop.level), owner: ps.playerId, filter: (cid) => { const c = gd.chess(cid); return !!(c && Array.isArray(c.bonds) && c.bonds.includes(bs.bond)); } })
+            || m.pool.roll(m.rngMeta, { maxTier: 6, owner: ps.playerId, filter: (cid) => { const c = gd.chess(cid); return !!(c && Array.isArray(c.bonds) && c.bonds.includes(bs.bond)); } });
           if (id) ps.acquireChess(id, { source: 'choice' });
         }
         handled = true;

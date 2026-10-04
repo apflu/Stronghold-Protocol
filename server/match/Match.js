@@ -1264,7 +1264,7 @@ export class Match {
     if (this.phase !== PHASE.INFO_CHECK) return;
     this.phase = PHASE.BAND_DRAFT;
     // the 甄选 picks are locked with the loadout: their pool entries exist before the first roll
-    for (const ps of this.order) this.pool.addPicks(ps.picks);
+    for (const ps of this.order) this.pool.addPicks(ps.picks, ps.playerId);
     const order = this.order.map((p) => p.playerId);
     if (!this.isSolo) this.rngDraft.shuffle(order);
     const skips = this.isSolo ? 0 : this.gd.bandDraft.skipsPerPlayer;
@@ -1643,10 +1643,10 @@ export class Match {
    * Roll a choices.json pool (ctx.rollPool). Equip pools → rollItemId. Chess pools: an `items` (uniform) or `weighted`
    * list — only chess with a free pool copy (or outside the pool) qualify — else a copy-weighted draw from the shared
    * pool filtered by `tier` / `minTier` / `maxTier` (number or 'shopLevel') / `bond`; `golden: true` yields the elite id.
-   * `picks`: the rolling player's 甄选 picks (pool.js).
+   * `owner`: the rolling player (their 甄选 pick entries join the draw — pool.js).
    * @returns {{ kind: 'item'|'chess', id: string, golden?: boolean } | null}
    */
-  rollPool(poolId, { shopLevel = 6, picks = null } = {}) {
+  rollPool(poolId, { shopLevel = 6, owner = null } = {}) {
     const pools = this.gd.choices.pools && typeof this.gd.choices.pools === 'object' ? this.gd.choices.pools : {};
     const p = typeof poolId === 'string' && Object.hasOwn(pools, poolId) ? pools[poolId] : null;
     if (!p || typeof p !== 'object') return null;
@@ -1660,7 +1660,7 @@ export class Match {
     const free = (id) => {
       if (typeof id !== 'string' || !this.gd.chess(id)) return false;
       const base = this.gd.baseIdOf(id);
-      return !this.pool.has(base) || this.pool.left(base) > 0;
+      return !this.pool.has(base, owner) || this.pool.left(base, owner) > 0;
     };
     let id = null;
     if (Array.isArray(p.weighted) && p.weighted.length) {
@@ -1676,7 +1676,7 @@ export class Match {
       id = this.pool.roll(rng, {
         tier: Number.isInteger(p.tier) ? p.tier : null,
         maxTier,
-        picks,
+        owner,
         filter: (cid, e) => e.tier >= minTier && (!bond || (Array.isArray(this.gd.chess(cid)?.bonds) && this.gd.chess(cid).bonds.includes(bond))),
       });
     }
