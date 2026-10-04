@@ -14,7 +14,8 @@
 #
 # Run:  docker run -d --name stronghold -p 3000:3000 --restart unless-stopped stronghold-protocol
 # Env:  PORT (3000), HOST (0.0.0.0), SP_COMBAT (client|server), SP_VERIFY (off|sample|all), TRUST_PROXY (auto|1|0), DEBUG,
-#       SP_BOT_ASSIST (1 = quiet help for AI teammates, co-op 绝境/终极), SP_BOT_PREFER_BOND (bond id, e.g. steadShip)
+#       SP_BOT_ASSIST (1 = quiet help for AI teammates, co-op 绝境/终极), SP_BOT_PREFER_BOND (bond id, e.g. steadShip),
+#       SP_BOOST (1 = the per-player 爽玩 box in rooms: +4 coins / round, a 40% lucky first shop slot)
 
 ARG NODE_IMAGE=node:22-alpine
 

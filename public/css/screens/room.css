@@ -137,6 +137,7 @@
 .seat__bot-label .icon { width: .16rem; height: .16rem; }
 .seat__who { display: flex; align-items: center; gap: .08rem; max-width: 100%; }
 .seat__name { font-size: .26rem; font-weight: 700; max-width: 3rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat__boost { flex: none; padding: .01rem .07rem; border: 1px solid var(--amber); color: var(--amber); font-size: .13rem; font-weight: 700; }
 .seat__you { flex: none; padding: .01rem .07rem; background: var(--mint-500); color: var(--text-on-mint); font-size: .13rem; font-weight: 700; }
 .seat__foot {
   align-self: stretch;
@@ -232,6 +233,8 @@
 .room-bar__label { display: flex; flex-direction: column; font-size: .17rem; font-weight: 700; color: var(--text-md); line-height: 1.35; }
 .room-bar__center { display: flex; flex-direction: column; align-items: center; gap: .06rem; }
 .room-bar__right { justify-self: end; display: flex; align-items: center; gap: .16rem; }
+.room-boost { display: flex; align-items: center; gap: .06rem; font-size: .15rem; cursor: pointer; user-select: none; }
+.room-boost input { width: .18rem; height: .18rem; accent-color: var(--amber); cursor: pointer; }
 .room-bar__status { font-size: .15rem; }
 .room-bar__status .icon { width: .18rem; height: .18rem; margin-right: .05rem; vertical-align: -.03rem; }
 

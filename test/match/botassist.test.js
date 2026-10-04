@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
-import { Match, BOT_ASSIST, parseFlag } from '../../server/match/Match.js';
+import { Match, BOT_ASSIST, BOOST_DEFAULT, parseBoost, parseFlag } from '../../server/match/Match.js';
 import { makeMatch, checkInvariants, give, chessOfTier, DATA } from './harness.js';
 
 const coop = (o = {}) => makeMatch({ mode: 'coop', difficulty: 'ABYSS', humans: 1, bots: 3, fake: true, ...o });
@@ -50,11 +50,12 @@ test('bot assist: a lucky slot is a base the bot owns unmerged and no teammate h
   give(m, bot, theirs, 'hand');
   give(m, human, theirs, 'hand');
   give(m, human, theirs, 'hand');
-  m.rngBots = () => 0; // every slot lucky
+  m.rngBots = () => 0; // the lucky slot always comes up
   bot.rollShop();
   const chess = bot.shop.slots.filter((s) => s && s.kind === 'chess');
-  assert.ok(chess.length > 0);
-  for (const s of chess) assert.equal(m.gd.baseIdOf(s.id), mine, 'only the base the human is not merging');
+  assert.ok(chess.length > 1);
+  assert.equal(m.gd.baseIdOf(chess[0].id), mine, 'the first slot: only the base the human is not merging');
+  for (let k = 0; k < 5; k++) assert.equal(bot._assistChessSlot() && m.gd.baseIdOf(bot._assistChessSlot().id), mine);
   m.rngBots = () => 0.999; // never lucky
   assert.equal(bot._assistChessSlot(), null);
   // a human's shop never takes a lucky slot
@@ -232,4 +233,40 @@ test('SP_BOUNTY_COINS: the host reward for a bounty card — on the draft card, 
   assert.equal(bountyCard(off.m.gd, raw).coin, 1, 'default: the official reward');
   off.m.dispose();
   m.dispose();
+});
+
+test('SP_BOOST parsing: on = 4 coins and a 40% lucky first slot; "<funds>,<luck>" custom; off = null', () => {
+  assert.equal(parseBoost(''), null);
+  assert.equal(parseBoost('0'), null);
+  assert.deepEqual(parseBoost('1'), BOOST_DEFAULT);
+  assert.deepEqual({ ...BOOST_DEFAULT }, { funds: 4, shopLuck: 0.4 });
+  assert.deepEqual(parseBoost('6,0.25'), { funds: 6, shopLuck: 0.25 });
+  assert.deepEqual(parseBoost('999,7'), { funds: 50, shopLuck: 1 });
+});
+
+test('爽玩 box: only the seats that ticked it get the coins (outside stats) and a lucky first slot', () => {
+  const h = makeMatch({ mode: 'coop', difficulty: 'ABYSS', humans: 2, bots: 0, fake: true, boost: '1', boostSeats: ['p_0'] }).start().toPrep(1);
+  const m = h.m;
+  const [on, off] = [h.ps('p_0'), h.ps('p_1')];
+  assert.ok(on.boost && !off.boost);
+  assert.equal(on.funds - off.funds, 4, 'four more coins at the round start');
+  assert.equal(on.stats.fundsGained, off.stats.fundsGained, 'not in the result stats');
+  const [mine, theirs] = chessOfTier(1).filter((id) => m.pool.left(id) > 3);
+  for (const p of on.allChess()) on.sell(p.uid);
+  give(m, on, mine, 'hand');
+  give(m, on, theirs, 'hand');
+  give(m, off, theirs, 'hand');
+  give(m, off, theirs, 'hand');
+  m.rngBoost = () => 0;
+  on.rollShop();
+  const chess = on.shop.slots.filter((s) => s && s.kind === 'chess');
+  assert.equal(m.gd.baseIdOf(chess[0].id), mine, 'the first slot: an own unmerged operator nobody else holds a pair of');
+  assert.equal(off._boostChessSlot(), null, 'no box, no lucky slot');
+  m.rngBoost = () => 0.999;
+  assert.equal(on._boostChessSlot(), null);
+  checkInvariants(m);
+  m.dispose();
+  const plain = makeMatch({ mode: 'coop', humans: 1, fake: true, boost: null, boostSeats: ['p_0'] });
+  assert.equal(plain.ps('p_0').boost, null, 'SP_BOOST off: the box does nothing');
+  plain.m.dispose();
 });

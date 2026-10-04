@@ -37,6 +37,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Network, SessionRegistry, NET_DEFAULTS, clientAddress } from './net.js';
 import { Lobby } from './lobby.js';
+import { parseBoost } from './match/Match.js';
 import { eventLog } from './match/eventlog.js';
 import { AccessStore, COOKIE_NAME, COOKIE_MAX_AGE_S, MAX_DEVICES, parseAccessMode, parseCookies } from './access.js';
 import { getData, loadData } from './data.js';
@@ -516,6 +517,8 @@ export async function startServer(opts = {}) {
   for (const k of ['lobbyGraceMs', 'maxRooms', 'maxRoomsPerAddr', 'maxMatchesPerAddr', 'resyncMinGapMs', 'soloReconnectWindowMs']) {
     if (opts[k] != null) lobbyOptions[k] = opts[k];
   }
+  // SP_BOOST: rooms offer the 爽玩 box (the match reads the same variable for its numbers, server/match/Match.js)
+  lobbyOptions.boost = opts.boost != null ? !!opts.boost : parseBoost(process.env.SP_BOOST) != null;
   // the host's event log (docs/DEPLOY.md「事件日志」; tools/logs.mjs reads it)
   const logDir = opts.logDir ?? process.env.SP_LOG_DIR ?? '';
   if (logDir && !eventLog.enabled) {

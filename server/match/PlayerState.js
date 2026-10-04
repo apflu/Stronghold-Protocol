@@ -112,6 +112,8 @@ export class PlayerState {
     /** operator loadout (DESIGN §16): frozen { [baseChessId]: { skill, module } }, {} = every chess on its defaults */
     this.loadout = Object.freeze({});
     if (!this.isBot && seat.loadout) this.setLoadout(seat.loadout);
+    /** SP_BOOST: the 爽玩 numbers when this human ticked the box (Match.boost), else null */
+    this.boost = !this.isBot && seat.boost && m.boost ? m.boost : null;
     this.shop = { level: 1, upgradePrice: this.gd.upgradeBase(1) ?? 0, slots: [], frozen: false, freeRefreshes: 0 };
     /** reward offers queue (merge rewards, special refreshes): { tier, source, label, slots: [{ kind, id, price, sold }] } */
     this.offers = [];
@@ -828,16 +830,17 @@ export class PlayerState {
     return Number.isFinite(p) ? Math.max(0, Math.round(p)) : slot.basePrice;
   }
 
-  _rollChessSlot() {
+  _rollChessSlot(i = 0) {
     const id = this.m.pool.roll(this.m.rngShop, { maxTier: this.shop.level });
     // the normal roll is always drawn first, so the shop rng stream (every player's rolls) is the same with or without it
-    const lucky = this._assistChessSlot();
+    // the lucky slot (AI assist / 爽玩 box): the first chess slot of a roll only
+    const lucky = i === 0 ? this._assistChessSlot() ?? this._boostChessSlot() : null;
     if (lucky) return lucky;
     return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
   }
 
   /**
-   * SP_BOT_ASSIST (Match BOT_ASSIST): with probability shopLuck an AI teammate's chess slot is drawn (copy-weighted, like
+   * SP_BOT_ASSIST (Match BOT_ASSIST): with probability shopLuck an AI teammate's first chess slot of a roll is drawn (copy-weighted, like
    * any roll) among the bases it owns but has not merged, leaving out those another alive player holds a pair of —
    * the bot merges more without taking what a teammate is merging. It draws on the bots' rng stream only (the slot's
    * normal rngShop draw is still made). null = keep the normal roll.
@@ -848,6 +851,20 @@ export class PlayerState {
     const others = (this.m.order || []).filter((q) => q !== this && q.alive);
     const filter = (id) => !this.gd.isGolden(id) && this.countCopies(id) >= 1 && !others.some((q) => q.countCopies(id) >= 2);
     const id = this.m.pool.roll(this.m.rngBots, { maxTier: this.shop.level, filter });
+    return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
+  }
+
+  /**
+   * SP_BOOST (爽玩 box): with probability boost.shopLuck the first chess slot of a roll is drawn like the AI assist's lucky
+   * slot — among the player's own unmerged operators, leaving out those another alive player holds a pair of. Own rng
+   * stream (Match.rngBoost). null = keep the normal roll.
+   */
+  _boostChessSlot() {
+    const b = this.boost;
+    if (!b || !(b.shopLuck > 0) || this.m.rngBoost() >= b.shopLuck) return null;
+    const others = (this.m.order || []).filter((q) => q !== this && q.alive);
+    const filter = (id) => !this.gd.isGolden(id) && this.countCopies(id) >= 1 && !others.some((q) => q.countCopies(id) >= 2);
+    const id = this.m.pool.roll(this.m.rngBoost, { maxTier: this.shop.level, filter });
     return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
   }
 
@@ -869,7 +886,7 @@ export class PlayerState {
     const keep = (s, kind) => (keepFrozen && s && s.kind === kind && !s.sold && s.frozen ? { ...s } : null);
     // frozen slots keep their position; sold / empty / unfrozen positions are rerolled
     const slots = [];
-    for (let i = 0; i < nChess; i++) slots.push(keep(oldChess[i], 'chess') ?? this._rollChessSlot());
+    for (let i = 0; i < nChess; i++) slots.push(keep(oldChess[i], 'chess') ?? this._rollChessSlot(i));
     for (let i = 0; i < nItem; i++) slots.push(keep(oldItems[i], 'item') ?? this._rollItemSlot());
     this.shop.slots = slots;
     this.shop.layout = { chess: nChess, item: nItem };
@@ -1483,6 +1500,8 @@ export class PlayerState {
     if (this.isBot && this.m.botAssist) { this.funds += this.m.botAssist.funds; this.dirty(); }
     // SP_BONUS_FUNDS (Match.bonusFunds): the solo human's practice coins, likewise outside stats.fundsGained
     if (!this.isBot && this.m.bonusFunds) { this.funds += this.m.bonusFunds; this.dirty(); }
+    // SP_BOOST (爽玩 box): likewise
+    if (this.boost && this.boost.funds > 0) { this.funds += this.boost.funds; this.dirty(); }
     // temp is NOT wiped here: the last prep's deadline resolved what the player could act on (endPrep); what overflowed
     // after it (battle-result grants, SETTLE merges, returned equipment) is shown and usable in this prep (tempDue).
     // Likewise reward offers of the last prep already expired at its end; what is still queued was earned after it —

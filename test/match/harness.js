@@ -37,7 +37,7 @@ export function makeMatch(o = {}) {
     seats = [];
     const humans = o.humans ?? 1;
     const bots = mode === 'solo' ? 0 : (o.bots ?? 0);
-    for (let i = 0; i < humans; i++) seats.push({ seat: seats.length, playerId: `p_${i}`, name: `P${i}`, isBot: false, connected: true });
+    for (let i = 0; i < humans; i++) seats.push({ seat: seats.length, playerId: `p_${i}`, name: `P${i}`, isBot: false, connected: true, boost: (o.boostSeats || []).includes(`p_${i}`) });
     for (let i = 0; i < bots; i++) seats.push({ seat: seats.length, playerId: `ai_${i}`, name: `AI${i}`, isBot: true, connected: true });
   }
   const sched = new VirtualScheduler({ instantCombat: o.instant !== false });
@@ -82,6 +82,7 @@ export function makeMatch(o = {}) {
     botPreferBand: o.botPreferBand ?? '',
     bountyCoins: o.bountyCoins ?? '', // pass bossHpMul: undefined to read SP_BOSS_HP_MUL*
     bonusFundsFor: o.bonusFundsFor ?? '',
+    boost: o.boost ?? null, // SP_BOOST numbers (or '1'); seats ticking the box: o.boostSeats
     botSliceMs: o.botSliceMs,
     clientCombat: o.clientCombat ?? false,
     verify: o.verify ?? 'off',

@@ -78,6 +78,7 @@ export const LOBBY_DEFAULTS = Object.freeze({
   soloReconnectWindowMs: null, // a dropped solo run stays resumable this long (null = data singleReconnectTime, 24 h)
   membersCreateOnly: false, // SP_ACCESS=host: only sessions on an invited device (session.access) create rooms
   guestJoinMisses: 10,     // SP_ACCESS=host: wrong room codes a guest network may try per minute (code guessing)
+  boost: false,            // SP_BOOST: rooms offer the per-player 爽玩 box (room.boost; the match applies it, Match.boost)
 });
 
 /** Official `singleReconnectTime` (s) when the data lacks it (constData, research 01 §1). */
@@ -155,8 +156,9 @@ export class Room {
       difficulty: this.difficulty,
       inMatch: !!this.match,
       seats: this.seats.map((s) => (s
-        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
+        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left, ...(s.boost ? { boost: true } : {}) }
         : null)),
+      ...(this.boostable ? { boostable: true } : {}),
     };
   }
 }
@@ -265,6 +267,7 @@ export class Lobby {
       case 'room.removeBot': return this.removeBot(session, msg);
       case 'room.start': return this.start(session);
       case 'room.loadout': return this.loadout(session, msg);
+      case 'room.boost': return this.boost(session, msg);
       default:
         if (typeof msg.t === 'string' && msg.t.startsWith('g.')) return this.routeGame(session, msg);
         return fail(ERR.BAD_MSG, `unhandled type ${String(msg.t).slice(0, 32)}`);
@@ -333,6 +336,7 @@ export class Lobby {
     if (!code) return fail(ERR.INTERNAL, 'no room code available');
     if (cur) this.removeMember(cur, session.playerId);
     const room = new Room(code, mode, difficulty, this.now());
+    room.boostable = !!this.opts.boost;
     room.ownerKey = key;
     room.seats[0] = this.humanSeat(0, session);
     room.hostId = session.playerId;
@@ -398,6 +402,21 @@ export class Lobby {
     const seat = room.seatOf(session.playerId);
     if (seat.ready !== ready) {
       seat.ready = ready;
+      this.broadcastState(room);
+    }
+    return OK;
+  }
+
+  /** room.boost (SP_BOOST): the player's 爽玩 box — kept on the session (the next rooms too), applied at the next start. */
+  boost(session, { on }) {
+    if (!this.opts.boost) return fail(ERR.BAD_MSG, 'boost is off on this server');
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    session.boost = !!on;
+    const seat = room.seatOf(session.playerId);
+    if (seat && seat.boost !== session.boost) {
+      seat.boost = session.boost;
       this.broadcastState(room);
     }
     return OK;
@@ -510,6 +529,7 @@ export class Lobby {
       seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, connected: s.connected,
       // DESIGN §16: the human's checked operator loadout (bots fight with the defaults)
       loadout: s.isBot ? null : s.loadout || null,
+      boost: !s.isBot && !!s.boost,
     }));
     // lastPublic / results: the latest m.public broadcast and the m.result frames (encoded), kept for the replay.
     const ctx = { live: true, ended: false, disposed: false, match: null, lastPublic: null, sharedResult: null, results: new Map() };
@@ -764,6 +784,7 @@ export class Lobby {
     return {
       seat: idx, playerId: session.playerId, name: session.name, isBot: false, ready: false, connected: session.connected, left: false,
       loadout: session.loadout || null,
+      boost: !!(this.opts.boost && session.boost),
     };
   }
 

@@ -136,6 +136,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot 
     <div class="seat__who">
       <span class="seat__name">${seat.name || '博士'}</span>
       ${isMe ? html`<span class="seat__you">你</span>` : null}
+      ${seat.boost ? html`<span class="seat__boost" title="每回合额外资金，商店首格有概率刷出已有干员">爽玩</span>` : null}
     </div>
     <${MicroLabel}>${seat.isBot ? 'AUTONOMOUS UNIT' : `DOCTOR #${doctorNo(seat.playerId)}`}<//>
     <footer class="seat__foot">
@@ -216,6 +217,8 @@ export function RoomScreen() {
   const start = () => run('start', () => net.request('room.start', {}));
   const addBot = () => run('add', () => net.request('room.addBot', {}));
   const removeBot = (seat) => run(`rm${seat}`, () => net.request('room.removeBot', { seat }));
+  const myBoost = !!facts.mine?.boost;
+  const toggleBoost = () => run('boost', () => net.request('room.boost', { on: !myBoost }));
   const setDifficulty = (difficulty) => run('diff', () => net.request('room.setDifficulty', { difficulty }));
   const leave = async () => {
     if (inFlight.current) return;
@@ -302,6 +305,9 @@ export function RoomScreen() {
         <div class="room-bar__status">${statusLine}</div>
       </div>
       <div class="room-bar__right">
+        ${room.boostable ? html`<label class="room-boost" title="每回合额外资金，商店首格有概率刷出你已有、未合成的干员（不抢别人已有一对的）。所有人可见。">
+          <input type="checkbox" checked=${myBoost} disabled=${!online || !facts.mine || busy === 'boost'} onChange=${toggleBoost} />爽玩
+        </label>` : null}
         <${LoadoutButton} from="room" size="lg" class="room-loadout" />
         ${facts.isHost
           ? html`<${Tooltip} text=${facts.canStart ? null : '仍有博士未准备就绪'}>
