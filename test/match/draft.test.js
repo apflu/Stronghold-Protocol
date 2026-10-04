@@ -274,3 +274,33 @@ test('a single human (a 同盟 room started alone or with AI teammates only) is 
   assert.ok(h.m.deadline > 0, 'co-op prep is timed');
   h.m.dispose();
 });
+
+test('机变 timeout: a turn that runs out takes the card the player selected (g.choiceFocus) while it is free, else a random one', () => {
+  const run = (takenFirst) => {
+    const h = makeMatch({ mode: 'coop', humans: 2, seed: 11, fake: true }).start();
+    const m = h.m;
+    h.drive(() => m.phase === PHASE.SP_DRAFT, { ready: true });
+    assert.equal(m.phase, PHASE.SP_DRAFT);
+    const assigned = new Map();
+    const apply = m._applyCard.bind(m);
+    m._applyCard = (ps, idx) => { assigned.set(ps.playerId, idx); return apply(ps, idx); };
+    const first = m.spTurn();
+    const other = first === 'p_0' ? 'p_1' : 'p_0';
+    const sp = m.publicView().sp;
+    const want = sp.cards[sp.cards.length - 1].idx;
+    assert.equal(m.handle(first, { t: 'g.choiceFocus', idx: 99 }).error, ERR.BAD_TARGET);
+    // the waiting player may select already; the player whose turn it is runs out of time
+    const late = takenFirst ? other : first;
+    assert.deepEqual(m.handle(late, { t: 'g.choiceFocus', idx: want }), { ok: true });
+    if (takenFirst) assert.deepEqual(m.handle(first, { t: 'g.choice', idx: want }), { ok: true });
+    h.sched.advance(m.deadline - h.sched.now() + 10);
+    const got = assigned.get(late);
+    m.dispose();
+    return { got, want };
+  };
+  const a = run(false);
+  assert.equal(a.got, a.want, 'the selected card');
+  const b = run(true);
+  assert.ok(Number.isInteger(b.got), 'a card was assigned');
+  assert.notEqual(b.got, b.want, 'the selected card was taken: another one');
+});

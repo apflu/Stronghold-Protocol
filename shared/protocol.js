@@ -324,6 +324,8 @@ export const C2S = {
   'g.destroy': { uid: isUid },
   'g.reward': { idx: (v) => isInt(v, 0, 5) },
   'g.choice': { idx: (v) => isInt(v, 0, 5) },
+  // the card the player has selected in the 机变 overlay (first tap) — a turn that runs out takes it; absent / null clears
+  'g.choiceFocus': { idx: nullable((v) => isInt(v, 0, 5)), $optional: ['idx'] },
   'g.ready': { ready: isBool },
   'g.emote': { id: (v) => EMOTES.includes(v) },
   'g.watch': { fieldId: (v) => isStr(v, 32) },

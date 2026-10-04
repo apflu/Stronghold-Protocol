@@ -65,6 +65,8 @@ export const actions = {
   destroy: (uid) => act('g.destroy', { uid }),
   reward: (idx) => act('g.reward', { idx }),
   choice: (idx) => act('g.choice', { idx }),
+  // the selected (first-tapped) 机变 card: a turn that runs out takes it
+  choiceFocus: (idx) => act('g.choiceFocus', { idx }, { sfx: false, quiet: true }),
   ready: (ready) => act('g.ready', { ready }, { sfx: ready ? 'ready' : 'back' }),
   emote: (id) => act('g.emote', { id }, { quiet: true }),
   watch: (fieldId) => act('g.watch', { fieldId }, { sfx: 'tab' }),
