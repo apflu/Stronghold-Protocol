@@ -100,6 +100,9 @@
 //   opts.verify        'off' | 'sample' | 'all' (env SP_VERIFY, default 'off'): re-simulate accepted client results
 //                      ('sample': ~1 in 8, in a later callback, mismatches logged; 'all': before accepting — the
 //                      server's result wins on a mismatch)
+//   opts.factionExclude 'enemyKey,…' (env SP_FACTION_EXCLUDE): special-enemy entries (factions.json `entries`, the
+//                      SPECIAL key with its attached normal / elite) a round never draws — the host's ban of a wave
+//                      group its players find unfair (waves.js pickRoundEntry; the round draws another entry)
 //
 //   opts.botAssist     boolean (env SP_BOT_ASSIST=1|on, default off): quiet help for AI teammates — see BOT_ASSIST; it
 //                      only applies to co-op matches with ≥ 1 human seat on BOT_ASSIST_DIFFICULTIES (m.botAssist = the
@@ -212,6 +215,8 @@ const BOT_SLICE_MS = 8;
 export const FLOW_TICKER_PRIORITY = 25;
 const GAME_TYPES = new Set(Object.keys(C2S).filter((t) => Object.hasOwn(C2S, t) && (t.startsWith('g.') || t.startsWith('b.'))));
 const env = (k) => (typeof process !== 'undefined' && process.env ? process.env[k] : undefined);
+/** 'a, b,c' (or an array) → Set of non-empty trimmed ids. */
+const parseKeyList = (v) => new Set((Array.isArray(v) ? v : String(v ?? '').split(',')).map((x) => String(x).trim()).filter(Boolean));
 /** Default combat mode: client-side unless SP_COMBAT=server. */
 const envClientCombat = () => String(env('SP_COMBAT') || '').toLowerCase() !== 'server';
 /** SP_VERIFY → 'off' | 'sample' | 'all'. */
@@ -292,6 +297,7 @@ export class Match {
     this.onEndFn = opts.onEnd;
     this.data = opts.data && typeof opts.data === 'object' ? opts.data : {};
     this.gd = new GameData(this.data, this.modeId);
+    this.gd.excludedFactions = parseKeyList(opts.factionExclude ?? env('SP_FACTION_EXCLUDE'));
     if (!this.difficulty) this.difficulty = this.gd.difficulty;
     this.isSolo = this.mode === 'solo' || this.gd.isSolo;
     this.ownsScheduler = !opts.scheduler;

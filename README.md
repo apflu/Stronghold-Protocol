@@ -120,6 +120,7 @@ npm start          # 启动服务器：http://localhost:3000
 | `SP_BOT_HELP_LAST` | 空 | 设为 `1` 时联防帮手优先派真人（击杀悬赏敌人的赏金归帮手），名额有剩才派 AI |
 | `SP_BOT_PREFER_BAND` | 空 | 策略 ID（如 `band_amiya` = 阿米娅）：AI 座位在策略轮选中只要它还没被选走就选它 |
 | `SP_BOT_PREFER_BOND` | 空 | 盟约 ID（如 `steadShip` = 坚守）：所有 AI 优先把这个盟约凑到最高档 |
+| `SP_FACTION_EXCLUDE` | 空 | 屏蔽某些特训敌人组：逗号分隔的特殊敌人 key（如 `enemy_1072_dlancer` 萨卡兹穿刺手），抽到它的回合改抽别的组 |
 | `TRUST_PROXY` | `auto` | 是否信任 `X-Forwarded-For` 等转发头：`auto` 只信任来自本机 / 内网的代理；`1` 总是；`0` 从不 |
 | `DEBUG` | 空 | 设为任意值输出详细日志 |
 | `SP_NO_BROWSER` | 空 | 设为 `1` 时启动脚本不自动打开浏览器 |
