@@ -453,3 +453,33 @@ test('白铁 铁钳号 and 突袭: with two 铁钳号 and no enemy, a 突袭 mem
   assert.ok(jumps > 20, `a ready skill hops at once (${jumps} jumps in 60 s)`);
   clean(h);
 });
+
+test('白铁 铁钳号: an operator with nothing to attack attacks it for real — attack SP, ammo, attack hooks; no damage', () => {
+  const h = makeBattle({
+    defs: { chess: {
+      a_sp: chessRec({ id: 'a_sp', skill: { spType: 'INCREASE_WHEN_ATTACK', spCost: 50, initSp: 0 }, stats: { maxHp: 3000, atk: 500, def: 0, blockCnt: 1, bat: 1 } }),
+      a_ammo: chessRec({ id: 'a_ammo', skill: { durationType: 'AMMO', duration: -1, spCost: 1, initSp: 1, bb: { 'attack@trigger_time': 20 } }, stats: { maxHp: 3000, atk: 500, def: 0, blockCnt: 1, bat: 1 } }),
+    } },
+    units: [
+      { chessId: IRON, row: 10, col: 2, uid: 1 },
+      { kind: 'token', tokenId: P3, ownerUid: 1, row: 10, col: 5, uid: 3, dir: 'RIGHT' },
+      { chessId: 'a_sp', row: 10, col: 4, uid: 2 }, // facing right: the 铁钳号 is in front of it
+      { chessId: 'a_ammo', row: 9, col: 5, uid: 4, dir: 'UP' }, // facing up (rows grow upward): onto (10,5)
+    ],
+    hooks: ['attack', 'damaged'], captureNoisy: true, autoFinish: false, timeLimit: 60,
+  });
+  h.run(0.2);
+  const a = h.unit('a_sp'), b = h.unit('a_ammo');
+  const [claw] = devicesOf(h, P3);
+  const sp0 = a.skill.sp;
+  assert.ok(b.skill.activate('test', { free: true }), 'its ammo skill');
+  const ammo0 = b.skill.ammoLeft;
+  h.run(6);
+  const onClaw = h.hooksOf('attack').filter((c) => c.targets.includes(claw));
+  assert.ok(onClaw.some((c) => c.attacker === a) && onClaw.some((c) => c.attacker === b), 'both attack it (real attacks)');
+  assert.ok(a.skill.sp > sp0 + 2, `attack SP (${sp0} → ${a.skill.sp})`);
+  assert.ok(claw.mem.clawSp > 0, 'it charges');
+  assert.equal(h.hooksOf('damaged').filter((c) => c.target === claw).length, 0, 'it takes no damage');
+  assert.ok(b.skill.ammoLeft < ammo0, `ammo spent (${ammo0} → ${b.skill.ammoLeft})`);
+  clean(h);
+});
