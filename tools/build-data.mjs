@@ -760,6 +760,7 @@ const DIY_PICKS = [
   { charId: 'char_4132_ascln', tiers: [5, 6] }, // 阿斯卡纶: 罗德岛, S.W.E.E.P. (隐藏: 巴别塔) ⇒ 协防干员
   { charId: 'char_4037_demetr', tiers: [5, 6] }, // 贝洛内: 叙拉古 ⇒ 叙拉古
   { charId: 'char_4182_oblvns', tiers: [5, 6] }, // 丰川祥子: Ave Mujica ⇒ 协防干员
+  { charId: 'char_377_gdglow', tiers: [5, 6] }, // 澄闪: 维多利亚 ⇒ 维多利亚
   // 6★ 原型干员 (V and VI)
   ...['char_608_acpion', 'char_609_acguad', 'char_610_acfend', 'char_611_acnipe', 'char_612_accast', 'char_613_acmedc',
     'char_614_acsupo', 'char_615_acspec', 'char_617_sharp2'].map((charId) => ({ charId, tiers: [5, 6], prototype: true })),

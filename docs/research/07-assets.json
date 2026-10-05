@@ -35,7 +35,7 @@
    "enemyIcon": 8779450
   },
   "license": "All game assets (c) Hypergryph / Yostar. Non-commercial fan project only; credit required; do not redistribute bulk archives.",
-  "picks": "甄选干员 (DESIGN §16.1): 白铁, 阿斯卡纶, 贝洛内, 丰川祥子 and 白铁's three devices were added later (the 原型干员 were already listed), probed by the patterns below (2026-10-05)"
+  "picks": "甄选干员 (DESIGN §16.1): 白铁, 阿斯卡纶, 贝洛内, 丰川祥子, 澄闪 and 白铁's three devices were added later (the 原型干员 were already listed), probed by the patterns below (2026-10-05)"
  },
  "operators": {
   "char_498_inside": {
@@ -17822,6 +17822,120 @@
    },
    "sfx": {},
    "subProfessionIcon": "https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/arts/ui/subprofessionicon/sub_lord_icon.png"
+  },
+  "char_377_gdglow": {
+   "name": "澄闪",
+   "rarity": "TIER_6",
+   "profession": "CASTER",
+   "subProfessionId": "funnel",
+   "nationId": "victoria",
+   "chess": [
+    {
+     "chessId": "chess_pick5_char_377_gdglow_a",
+     "chessLevel": 5,
+     "chessType": "DIY",
+     "defaultSkillIndex": 2,
+     "evolvePhase": "PHASE_2"
+    },
+    {
+     "chessId": "chess_pick6_char_377_gdglow_a",
+     "chessLevel": 6,
+     "chessType": "DIY",
+     "defaultSkillIndex": 2,
+     "evolvePhase": "PHASE_2"
+    }
+   ],
+   "avatar": {
+    "e0e1": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/char_377_gdglow.png",
+     "bytes": 58987
+    },
+    "e2": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/avatar/char_377_gdglow_2.png",
+     "bytes": 67612
+    }
+   },
+   "portrait": {
+    "e0e1": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/portrait/char_377_gdglow_1.png",
+     "bytes": 124878
+    },
+    "e2": {
+     "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/portrait/char_377_gdglow_2.png",
+     "bytes": 132258
+    }
+   },
+   "fullArt": {
+    "e0e1": null,
+    "e2": null
+   },
+   "skills": [
+    {
+     "index": 0,
+     "skillId": "skchr_gdglow_1",
+     "iconId": "skchr_gdglow_1",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_gdglow_1.png",
+      "bytes": 16143
+     },
+     "sfx": {}
+    },
+    {
+     "index": 1,
+     "skillId": "skchr_gdglow_2",
+     "iconId": "skchr_gdglow_2",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_gdglow_2.png",
+      "bytes": 17718
+     },
+     "sfx": {}
+    },
+    {
+     "index": 2,
+     "skillId": "skchr_gdglow_3",
+     "iconId": "skchr_gdglow_3",
+     "icon": {
+      "url": "https://raw.githubusercontent.com/yuanyan3060/ArknightsGameResource/main/skill/skill_icon_skchr_gdglow_3.png",
+      "bytes": 20041
+     },
+     "sfx": {}
+    }
+   ],
+   "battleSpine": {
+    "front": {
+     "skel": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_377_gdglow/char_377_gdglow/Front/char_377_gdglow.skel",
+      "bytes": 538093
+     },
+     "atlas": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_377_gdglow/char_377_gdglow/Front/char_377_gdglow.atlas",
+      "bytes": 1747
+     },
+     "png": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_377_gdglow/char_377_gdglow/Front/char_377_gdglow.png",
+      "bytes": 109319
+     },
+     "jsdelivrSkel": "https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/char_377_gdglow/char_377_gdglow/Front/char_377_gdglow.skel"
+    },
+    "back": {
+     "skel": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_377_gdglow/char_377_gdglow/Back/char_377_gdglow.skel",
+      "bytes": 294480
+     },
+     "atlas": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_377_gdglow/char_377_gdglow/Back/char_377_gdglow.atlas",
+      "bytes": 946
+     },
+     "png": {
+      "url": "https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/char_377_gdglow/char_377_gdglow/Back/char_377_gdglow.png",
+      "bytes": 84731
+     },
+     "jsdelivrSkel": "https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/char_377_gdglow/char_377_gdglow/Back/char_377_gdglow.skel"
+    },
+    "note": "甄选干员 (DESIGN §16.1): probed by URL pattern"
+   },
+   "sfx": {},
+   "subProfessionIcon": "https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/cn/assets/dyn/arts/ui/subprofessionicon/sub_funnel_icon.png"
   }
  },
  "tokens": {
