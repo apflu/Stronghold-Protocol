@@ -134,10 +134,10 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 
 ---
 
-## 2. `chess.json` — `{ [chessId]: Chess }` (266 season records = 133 normal + 133 golden, + 64 甄选 picks)
+## 2. `chess.json` — `{ [chessId]: Chess }` (266 season records = 133 normal + 133 golden, + 68 甄选 picks)
 
 112 are `visible` (non-hidden, non-DIY) normal chess: per tier 16/17/19/22/19/19. 17 are `isHidden` (retired
-上半 entries or effect-only such as `chess_char_1_15_a` 盟约·辅助干员 from band Pith); 4 are DIY (甄选) slots. The 64
+上半 entries or effect-only such as `chess_char_1_15_a` 盟约·辅助干员 from band Pith); 4 are DIY (甄选) slots. The 68
 甄选 picks (`chess_pick<T>_<charId>_a/_b`, DESIGN §16.1) are full chess with `isDiy: true`, `visible: false` and
 `diyPick: 'own' | 'prototype'`.
 

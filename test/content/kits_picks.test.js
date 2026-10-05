@@ -483,3 +483,49 @@ test('白铁 铁钳号: an operator with nothing to attack attacks it for real �
   assert.ok(b.skill.ammoLeft < ammo0, `ammo spent (${ammo0} → ${b.skill.ammoLeft})`);
   clean(h);
 });
+
+// ---- 澄闪 ------------------------------------------------------------------------------------------------------------
+
+const GD = 'chess_pick6_char_377_gdglow_a';
+
+test('澄闪: own kit at V and VI; 精准导流 RES penetration; S3 drones lock enemies anywhere (a free one each), 停顿, no attack of her own', () => {
+  for (const id of ['chess_pick5_char_377_gdglow_a', GD]) assert.ok(KITS[id], id);
+  const h = makeBattle({
+    defs: { enemies: { enemy_dummy: dummy() } },
+    units: [{ chessId: GD, row: 10, col: 3 }],
+    enemies: [{ key: 'enemy_dummy', pos: [10, 5] }, { key: 'enemy_dummy', pos: [12, 9] }, { key: 'enemy_dummy', pos: [9, 12] }],
+    hooks: ['damaged', 'attack', 'statusApplied'], captureNoisy: true, autoFinish: false, timeLimit: 60,
+  });
+  const u = h.unit(GD);
+  h.step();
+  assert.equal(u.kit.generic, undefined);
+  assert.equal(u.s.resIgnoreFlat, u.def.talents[1].bb.magic_resist_penetrate_fixed, '精准导流');
+  assert.equal(u.def.skill.id, 'skchr_gdglow_3');
+  assert.ok(u.skill.activate('test', { free: true }));
+  const attacks0 = h.hooksOf('attack').filter((c) => c.attacker === u).length;
+  h.run(8);
+  const droneHits = h.hooksOf('damaged').filter((c) => c.source === u && (c.dmg?.tags || []).includes('droneAttack'));
+  assert.equal(new Set(droneHits.map((c) => c.target)).size, 3, 'three drones, three enemies (two out of her range)');
+  assert.equal(h.hooksOf('attack').filter((c) => c.attacker === u).length, attacks0, 'no attack of her own');
+  assert.ok(h.hooksOf('statusApplied').some((c) => c.status === 'sluggish' && c.source === u), '停顿');
+  clean(h);
+});
+
+test('澄闪 信标的愤怒: per-drone stacks — a drone self-destructs by its 40th roll at the latest, ATK × atk_scale_2 around its target', () => {
+  const h = makeBattle({
+    defs: { enemies: { enemy_dummy: dummy() } },
+    units: [{ chessId: GD, row: 10, col: 3, skillIndex: 1 }],
+    enemies: [{ key: 'enemy_dummy', pos: [10, 5] }],
+    hooks: ['damaged'], captureNoisy: true, autoFinish: false, timeLimit: 200,
+  });
+  const u = h.unit(GD);
+  h.step();
+  assert.ok(u.skill.activate('test', { free: true }), 'S2 (endless)');
+  h.run(80);
+  const booms = h.hooksOf('damaged').filter((c) => c.source === u && (c.dmg?.tags || []).includes('droneBoom'));
+  assert.ok(booms.length >= 1, 'self-destructs');
+  approx(booms[0].dmg.amount, u.s.atk * u.def.talents[0].bb['attack@atk_scale_2'], 1e-6, 'no trait ramp');
+  const hits = h.hooksOf('damaged').filter((c) => c.source === u && (c.dmg?.tags || []).includes('droneAttack')).length;
+  assert.ok(hits / (booms.length || 1) <= 40 * 2, `at most 40 rolls per drone between booms (${hits} hits, ${booms.length} booms)`);
+  clean(h);
+});

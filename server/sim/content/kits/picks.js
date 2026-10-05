@@ -33,10 +33,17 @@
 //            she leaves when Fever ends. S1's 8 notes go to the enemies in range nearest first, round-robin; S2 switches tone
 //            at every cast (piano first) [ASSUMED: no manual switch], piano notes do not pierce; S3: two phys notes on the
 //            highest-RES enemy in range, two arts notes on the highest-DEF one.
+//  澄闪      the skill's 浮游单元 are virtual (fx events): each locks an enemy (a free one first) of her range (S2 the skill
+//            range, S3 the whole field) and keeps it until it falls, the drone self-destructs or the skill ends, hitting
+//            once per attack interval of hers at ATK × its own trait ramp; she makes no attack of her own while they are
+//            out [ASSUMED for S1/S2 — S3's note: "技能期间，自身丢失全部视野"]; a drone that self-destructs (信标的愤怒:
+//            per-drone stacks, 1.5 % each, +1 per failed roll, sure at 40; radius 1.1, no trait ramp) is back after
+//            GDGLOW_RETURN s [ASSUMED] and locks again.
 
 import { bodyInKeys, bodyOnTile } from '../../body.js';
 import { frontOf } from '../../dir.js';
 import { COLS } from '../../constants.js';
+import { canTargetEnemy } from '../../targeting.js';
 import { releaseSkillSummon, TOKEN_IDS } from '../tokens.js';
 
 const AURA = 0.2;          // aura refresh period (s)
@@ -517,11 +524,100 @@ function sakiko(bb, chess, def) {
   };
 }
 
+// ===== 澄闪 (funnel) S3 澄净闪耀 — no attack of her own, 浮游单元 +2 lock enemies anywhere, ATK +55 %, hits 停顿 0.5 s
+//       S1 火花四溅 (浮游单元 +1, ATK / ASPD up, lock in her range); S2 电流翻涌 (浮游单元 +1, skill range, ATK up, endless);
+//       talents 信标的愤怒 (during a skill a drone hit may self-destruct: ATK × attack@atk_scale_2 arts around its target)
+//       / 精准导流 (she and her drones ignore magic_resist_penetrate_fixed RES)
+/** Time a self-destructed 浮游单元 needs to come back and lock again (s) [ASSUMED]. */
+export const GDGLOW_RETURN = 0.5;
+function goldenglow(bb, chess, def) {
+  const t0 = tbb(def, 0), t1 = tbb(def, 1), tb = def.traitBb || {};
+  const S3 = isSel(def, 'skchr_gdglow_3');
+  const pen = num(t1.magic_resist_penetrate_fixed, 0);
+  const ramp = { init: num(tb.init_atk_scale, 0.35), delta: num(tb.delta_atk_scale, 0.15), max: num(tb.max_atk_scale, 1.1) };
+  const boomP = num(t0['attack@prob'], 0.015), boomMax = Math.max(1, Math.floor(num(t0['attack@max_stack_cnt'], 40)));
+  const boomScale = num(t0['attack@atk_scale_2'], 3), BOOM_R = 1.1;
+  const sluggish = num(bb['attack@sluggish'], 0);
+  const drones = 1 + Math.max(0, Math.floor(num(bb['attack@cnt'], 1)));
+  const g = grid(def.skill?.rangeGrid);
+  const ok = (unit, e) => !!e && e.alive && !e.hidden && canTargetEnemy(unit, e, { canHitFly: true });
+  const candidates = (battle, unit) => (S3 ? battle.enemies.filter((e) => ok(unit, e)) : enemiesOnRange(battle, unit).filter((e) => ok(unit, e)));
+  const hit = (battle, unit, d) => {
+    const t = d.t;
+    d.ramp = d.rampId === t.id ? Math.min(ramp.max, d.ramp + ramp.delta) : ramp.init;
+    d.rampId = t.id;
+    battle.fx('drone', { x: t.x, y: t.y, id: unit.id });
+    battle.dealDamage(unit, t, { amount: unit.s.atk * d.ramp, type: 'arts', isAttack: true, tags: ['droneAttack'] });
+    if (sluggish > 0 && t.alive) battle.applyStatus(t, 'sluggish', { duration: sluggish, source: unit });
+    // 信标的愤怒: per-drone stacks (PRTS 备注), sure at the cap
+    if (d.boom >= boomMax || battle.rng() < boomP * d.boom) {
+      d.boom = 1;
+      battle.fx('explode', { x: t.x, y: t.y, r: BOOM_R, kind: 'droneBoom' });
+      for (const e of battle.foesInRadius(t.x, t.y, BOOM_R)) {
+        battle.dealDamage(unit, e, { amount: unit.s.atk * boomScale, type: 'arts', tags: ['talent', 'droneBoom'] });
+        if (sluggish > 0 && e.alive) battle.applyStatus(e, 'sluggish', { duration: sluggish, source: unit });
+      }
+      d.t = null; d.back = battle.time + GDGLOW_RETURN; // back to her, then out again
+    } else d.boom++;
+  };
+  const tickDrones = (battle, unit, dt) => {
+    const m = unit.mem.gd;
+    if (!m) return;
+    for (const d of m.drones) {
+      d.cd = Math.max(0, d.cd - dt);
+      if (d.t && !ok(unit, d.t)) d.t = null; // its enemy fell (or left the field): back to her, out again
+      if (!d.t) {
+        if (battle.time < d.back) continue;
+        const pool = candidates(battle, unit);
+        if (!pool.length) continue;
+        const taken = new Set(m.drones.map((x) => x.t).filter(Boolean));
+        const free = pool.filter((e) => !taken.has(e));
+        const pick = (free.length ? free : pool).sort((a, b) => Math.hypot(a.x - unit.x, a.y - unit.y) - Math.hypot(b.x - unit.x, b.y - unit.y) || a.id - b.id)[0];
+        d.t = pick;
+        battle.fx('droneLock', { x: pick.x, y: pick.y, id: pick.id, src: unit.id });
+      }
+      if (d.cd > 1e-9) continue;
+      d.cd = unit.s.interval;
+      hit(battle, unit, d);
+      if (!unit.alive) return;
+    }
+  };
+  const release = (battle, unit) => {
+    const prev = unit.mem.gdBoom || [];
+    unit.mem.gd = { drones: Array.from({ length: drones }, (_, i) => ({ t: null, cd: 0, ramp: 0, rampId: null, back: -Infinity, boom: prev[i] ?? 1 })) };
+  };
+  const recall = (unit) => { if (unit.mem.gd) unit.mem.gdBoom = unit.mem.gd.drones.map((d) => d.boom); unit.mem.gd = null; };
+  const spec = (extra) => ({
+    attack: { noAttack: true },
+    onStart({ battle, unit }) { release(battle, unit); },
+    onTick({ battle, unit, dt }) { tickDrones(battle, unit, dt); },
+    onEnd({ unit }) { recall(unit); },
+    ...extra,
+  });
+  return {
+    skills: alt(def, {
+      skchr_gdglow_1: () => spec({ kind: 'duration', mods: { atkPct: num(bb.atk), aspd: num(bb.attack_speed) } }),
+      skchr_gdglow_2: () => spec({ kind: 'toggle', mods: { atkPct: num(bb.atk) }, ...(g ? { targeting: { rangeGrid: g } } : {}) }),
+    }),
+    skill: spec({ kind: 'duration', mods: { atkPct: num(bb.atk) } }),
+    talents: [
+      { install(battle, unit) { battle.on('deploy', (c) => { if (c.unit === unit && !c.move) unit.mem.gdBoom = null; }, { owner: unit }); } }, // stacks reset on deploy
+      { install(battle, unit) { // 精准导流 (her own stat: every damage she and her drones deal)
+        if (!(pen > 0)) return;
+        const apply = () => battle.addBuff(unit, { key: 'gdglow:t2', mods: { resIgnoreFlat: pen }, persist: true });
+        battle.on('deploy', (c) => { if (c.unit === unit) apply(); }, { owner: unit });
+        if (unit.deployed) apply();
+      } },
+    ],
+  };
+}
+
 const KITS = {};
 for (const tier of [5, 6]) {
   KITS[`chess_pick${tier}_char_4132_ascln_a`] = ascalon;
   KITS[`chess_pick${tier}_char_4072_ironmn_a`] = ironmn;
   KITS[`chess_pick${tier}_char_4037_demetr_a`] = bellone;
   KITS[`chess_pick${tier}_char_4182_oblvns_a`] = sakiko;
+  KITS[`chess_pick${tier}_char_377_gdglow_a`] = goldenglow;
 }
 export default KITS;
