@@ -8,7 +8,7 @@ import {
   isFlyKey,
 } from '../../server/match/waves.js';
 import { createRng } from '../../server/sim/rng.js';
-import { DATA } from './harness.js';
+import { DATA, makeMatch } from './harness.js';
 
 const TS = DATA.factions.templateSlots;
 const PLACEHOLDERS = new Set([TS.N, TS.E, TS.S, TS.NF, TS.EF, TS.SF]);
@@ -295,4 +295,28 @@ test('preview: one entry per action with gate / time / class flags, bounty and b
   assert.ok(pv.some((e) => e.gate === 'upper') && pv.some((e) => e.gate === 'lower'), 'R12 uses both gates');
   for (let i = 1; i < pv.length; i++) assert.ok(pv[i].t >= pv[i - 1].t, 'sorted by spawn time');
   for (const r of [1, 2, 3]) assert.ok(previewOf(buildNormalWave(gd, createRng(1), setup.factions, r).spawns).every((e) => e.gate === 'lower'), `R${r}: lower gate only`);
+});
+
+test('SP_FACTION_EXCLUDE (opts.factionExclude): a banned special entry is never a round pick; the round draws another', () => {
+  const LANCER = 'enemy_1072_dlancer';
+  const picksOf = ({ factionExclude } = {}, seed) => {
+    const prev = process.env.SP_FACTION_EXCLUDE;
+    if (factionExclude) process.env.SP_FACTION_EXCLUDE = factionExclude; else delete process.env.SP_FACTION_EXCLUDE;
+    try {
+      const h = makeMatch({ mode: 'coop', difficulty: 'ABYSS', humans: 1, bots: 1, seed });
+      const picks = h.m.factions.schedule.picks.filter(Boolean);
+      h.m.dispose();
+      return picks;
+    } finally {
+      if (prev === undefined) delete process.env.SP_FACTION_EXCLUDE; else process.env.SP_FACTION_EXCLUDE = prev;
+    }
+  };
+  let seen = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    if (picksOf({}, seed).some((p) => p.key === LANCER)) seen++;
+    const banned = picksOf({ factionExclude: `${LANCER}, enemy_none` }, seed);
+    assert.ok(!banned.some((p) => p.key === LANCER), `seed ${seed}: no 穿刺手 round`);
+    assert.equal(banned.length, picksOf({}, seed).length, `seed ${seed}: every round still has a pick`);
+  }
+  assert.ok(seen > 0, 'without the ban some matches draw it');
 });
