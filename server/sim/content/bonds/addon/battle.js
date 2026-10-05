@@ -318,8 +318,11 @@ function raidPoll(battle, st) {
     const idleOk = battle.time - since >= idle - 1e-9;
     if (!(ready || idleOk)) continue;
     if (battle.enemiesInKeys(u.rangeKeys || [], u, u.profile).length) continue;
-    if (ironClawsOf(battle, st.pid).some((t) => (u.rangeKeys || []).includes(Math.round(t.y) * COLS + Math.round(t.x)))) continue; // busy on a 铁钳号
-    const list = (targets ??= raidTargets(battle, u, st.pid));
+    // a 铁钳号 is a stand-in target only: beside one (hitting it is no attack — the idle timer runs on) a member leaves
+    // for a real enemy it can reach, never for another 铁钳号 (players' report: 瑕光 kept hitting one all battle long)
+    const onClaw = ironClawsOf(battle, st.pid).some((t) => (u.rangeKeys || []).includes(Math.round(t.y) * COLS + Math.round(t.x)));
+    const all = (targets ??= raidTargets(battle, u, st.pid));
+    const list = onClaw ? all.filter((e) => e.side === 'enemy') : all;
     if (!list.length) continue;
     // either trigger: raidTile only offers tiles with the target in range (without that a ready skill that finds no
     // target would redeploy — firing every 部署时 effect — at every poll; the idle trigger, which lacked it up to

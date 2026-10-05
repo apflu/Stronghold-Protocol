@@ -403,7 +403,7 @@ test('丰川祥子 S3 残月的余响: two phys notes on the highest-RES enemy, 
 
 test('白铁 铁钳号 and 突袭: with no enemy to reach, an idle 突袭 member jumps beside the 铁钳号, charges it and stays', () => {
   const h = makeBattle({
-    defs: { chess: { r_m: chessRec({ id: 'r_m', bonds: ['raidShip'], stats: { maxHp: 3000, atk: 500, def: 0, blockCnt: 1, bat: 1 } }) } },
+    defs: { chess: { r_m: chessRec({ id: 'r_m', bonds: ['raidShip'], stats: { maxHp: 3000, atk: 500, def: 0, blockCnt: 1, bat: 1 } }) }, enemies: { enemy_dummy: dummy() } },
     units: [
       { chessId: IRON, row: 10, col: 2, uid: 1 },
       { kind: 'token', tokenId: P3, ownerUid: 1, row: 12, col: 7, uid: 3, dir: 'RIGHT' },
@@ -420,6 +420,10 @@ test('白铁 铁钳号 and 突袭: with no enemy to reach, an idle 突袭 member
   const at = [r.tileR, r.tileC];
   h.run(12);
   assert.ok(claw.mem.clawSp > 0, `it charges the 铁钳号 (SP ${claw.mem.clawSp})`);
-  assert.deepEqual([r.tileR, r.tileC], at, 'busy on it: no further jump');
+  assert.deepEqual([r.tileR, r.tileC], at, 'no enemy anywhere: it stays on the 铁钳号');
+  // a real enemy shows up elsewhere: the 铁钳号 is only a stand-in, the member leaves for it within the idle time
+  const e = h.spawn('enemy_dummy', { pos: [9, 3] });
+  assert.ok(h.runUntil(() => Math.max(Math.abs(r.tileR - 9), Math.abs(r.tileC - 3)) <= 2, 12), `it jumps to the enemy (${r.tileR},${r.tileC})`);
+  assert.ok(e.alive || e.hp < e.s.maxHp, 'and fights it');
   clean(h);
 });

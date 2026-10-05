@@ -46,8 +46,9 @@
 //                 "自身装置天赋生效的干员攻击速度+N" adds ASPD to that operator under every skill
 //   铁钳号·原型机 (白铁 S3) an enemy-side summon in the game ("可被我方干员攻击但不受伤害"), here an untargetable,
 //                 invulnerable piece of its owner: an allied operator whose range covers it and who has no enemy to
-//                 attack hits it once per attack interval [ASSUMED: the game's taunt −2 target] (that counts as its attack;
-//                 突袭 jumps to it when no enemy can be reached — ironClawsOf, bonds/addon/battle.js) — +1 SP (受击回复), a
+//                 attack hits it once per attack interval [ASSUMED: the game's taunt −2 target] (no real attack: 突袭's
+//                 idle timer runs on; 突袭 jumps to it only when no enemy can be reached, and leaves it for one —
+//                 ironClawsOf, bonds/addon/battle.js) — +1 SP (受击回复), a
 //                 工匠's hit heals it hp_ratio; at full SP with an enemy in its range it loses its skill hp_ratio of max
 //                 HP and deals 白铁 ATK × atk_scale phys to the first target and × atk_scale_2 to the enemies within
 //                 IRON_CLAW_SPLASH tiles of it [ASSUMED radius: "周围小范围"]; the operator on the tile behind it takes
@@ -1132,7 +1133,6 @@ function ironClaw(bb, raw, def) {
           const p = (accs.get(a.id) || 0) + 0.1 / Math.max(0.1, bat);
           if (p < 1) { accs.set(a.id, p); continue; }
           accs.set(a.id, p - 1);
-          a.lastAttackAt = battle.time; // hitting it is attacking (突袭's idle timer, "未进行攻击" checks)
           // the attack the players see: the operator's attack clip turned towards it (and its projectile, ranged)
           battle._ev(['atk', a.id, unit.id, a.profile?._fortressMelee ? 'none' : (a.profile?.projectile || 'none')]);
           unit.mem.clawSp = Math.min(cost, unit.mem.clawSp + 1);
