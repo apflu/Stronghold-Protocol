@@ -135,7 +135,8 @@ export function acquireTargets(b, u, prof) {
   // (0.7071) reaches past its own tile, so a blocked enemy may stand outside a short range or behind its facing (user
   // playtest #5 item 4); a ranged operator on a melee tile too (user playtest #6: "阻挡了就一定要能打到")
   if (u.blocking.length) for (const e of b.blockedTargets(u, prof)) if (!cands.includes(e)) cands.push(e);
-  if (!cands.length) return cands;
+  // nothing to attack: a stand-in target in range, attacked for real (Battle.addStandInTargets — 白铁's 铁钳号)
+  if (!cands.length) return b._standIns?.length ? b.standInTargets(u, prof) : cands;
   if (prof.allInRange) return cands;
   const n = Math.max(1, Math.floor((prof.maxTargets || 1) + u.s.maxTargets));
   sortEnemyTargets(b, u, cands, prof.priority);

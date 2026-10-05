@@ -131,6 +131,8 @@ export class Battle {
     this.enemies = [];
     /** @type {Unit[]} every ally unit (ops, tokens, devices; dead included) */
     this.allyUnits = [];
+    /** stand-in targets (addStandInTargets): what an ally attacks when no enemy is in its range */
+    this._standIns = [];
     this._hooks = Object.create(null);
     this._emitDepth = 0;
     this._frameName = new Array(MAX_HOOK_DEPTH).fill(null);   // open hook/callback frames (diagnostics, _chain)
@@ -1565,6 +1567,22 @@ export class Battle {
   }
 
   /** Targetable enemies whose body is on any of `keys` (absolute tile keys; a huge enemy is listed once). */
+  /**
+   * Register `fn(unit, profile) → units[]`: targets an ally attacks with its normal attack when no enemy is in its range
+   * (ai.js acquireTargets). The attack is a real one — clip, projectile, ammo, attack SP, `attack` hooks — against a unit
+   * that takes no damage (content/tokens.js 铁钳号, an enemy-side summon in the game).
+   */
+  addStandInTargets(fn) { if (typeof fn === 'function') this._standIns.push(fn); }
+
+  /** The stand-in targets of an ally with no enemy to attack ([] when none). */
+  standInTargets(unit, profile) {
+    for (const fn of this._standIns) {
+      const t = this._safe(() => fn(unit, profile), 'standInTargets', unit);
+      if (Array.isArray(t) && t.length) return t;
+    }
+    return [];
+  }
+
   enemiesInKeys(keys, attacker, profile) {
     const out = [];
     if (!keys) return out;

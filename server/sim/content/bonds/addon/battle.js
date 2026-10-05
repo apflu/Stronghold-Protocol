@@ -313,12 +313,12 @@ function raidPoll(battle, st) {
   let targets = null; // the player's candidates (raidTargets), shared by its members until a jump changes the field
   for (const u of st.members[ID.raid]) {
     if (!onField(u) || !u.canAct) continue;
-    const since = Math.max(u.lastAttackAt ?? -Infinity, u.deployedAt ?? -Infinity, u.mem[KEY.raid] ?? -Infinity);
+    const since = Math.max(u.mem[KEY.raid + ':atk'] ?? -Infinity, u.deployedAt ?? -Infinity, u.mem[KEY.raid] ?? -Infinity);
     const ready = !!(u.skill && u.skill.ready && !(u.skill.active && u.skill.isTimed));
     const idleOk = battle.time - since >= idle - 1e-9;
     if (!(ready || idleOk)) continue;
     if (battle.enemiesInKeys(u.rangeKeys || [], u, u.profile).length) continue;
-    // a 铁钳号 is a stand-in target: beside one (hitting it is no attack — the idle timer runs on) a member leaves for a
+    // a 铁钳号 is a stand-in target: beside one (attacking it is no fight — the idle timer runs on) a member leaves for a
     // real enemy it can reach, else for ANOTHER 铁钳号 — never the one it stands by (players' report: 瑕光 kept hitting one
     // all battle long; the official trick is to alternate between two, every jump a new deployment)
     const inRange = (t) => (u.rangeKeys || []).includes(Math.round(t.y) * COLS + Math.round(t.x));
@@ -404,6 +404,8 @@ export function install(battle) {
   if (has(ID.raid)) {
     const raid = states.filter((st) => st.tiers[ID.raid] && st.members[ID.raid].size);
     if (raid.length) {
+      // the idle timer counts attacks on enemies only: an attack on a stand-in target (a 铁钳号) is no fight
+      battle.on('attack', (c) => { if (c.attacker && (c.targets || []).some((t) => t && t.side === 'enemy')) c.attacker.mem[KEY.raid + ':atk'] = battle.time; });
       battle.every(RAID_POLL, () => { for (const st of raid) raidPoll(battle, st); });
     }
   }
