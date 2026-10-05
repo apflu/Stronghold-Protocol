@@ -35,8 +35,9 @@
 //            highest-RES enemy in range, two arts notes on the highest-DEF one.
 //  澄闪      the skill's 浮游单元 are virtual (fx events): each locks an enemy (a free one first) of her range (S2 the skill
 //            range, S3 the whole field) and keeps it until it falls, the drone self-destructs or the skill ends, hitting
-//            once per attack interval of hers at ATK × its own trait ramp; she makes no attack of her own while they are
-//            out [ASSUMED for S1/S2 — S3's note: "技能期间，自身丢失全部视野"]; a drone that self-destructs (信标的愤怒:
+//            once per attack interval of hers at ATK × its own trait ramp. S1 / S2: she keeps attacking with her own
+//            浮游单元 and the skill's extra ones lock (players' memory of the game); S3 "停止攻击": all of them lock
+//            (PRTS: "技能期间，自身丢失全部视野"). A drone that self-destructs (信标的愤怒:
 //            per-drone stacks, 1.5 % each, +1 per failed roll, sure at 40; radius 1.1, no trait ramp) is back after
 //            GDGLOW_RETURN s [ASSUMED] and locks again.
 
@@ -524,8 +525,9 @@ function sakiko(bb, chess, def) {
   };
 }
 
-// ===== 澄闪 (funnel) S3 澄净闪耀 — no attack of her own, 浮游单元 +2 lock enemies anywhere, ATK +55 %, hits 停顿 0.5 s
-//       S1 火花四溅 (浮游单元 +1, ATK / ASPD up, lock in her range); S2 电流翻涌 (浮游单元 +1, skill range, ATK up, endless);
+// ===== 澄闪 (funnel) S3 澄净闪耀 — no attack of her own, all 浮游单元 (1 + 2) lock enemies anywhere, ATK +55 %, 停顿 0.5 s
+//       S1 火花四溅 (her attack goes on, the extra 浮游单元 locks in her range, ATK / ASPD up); S2 电流翻涌 (her attack goes
+//       on, the extra 浮游单元 locks in the skill range, ATK up, endless);
 //       talents 信标的愤怒 (during a skill a drone hit may self-destruct: ATK × attack@atk_scale_2 arts around its target)
 //       / 精准导流 (she and her drones ignore magic_resist_penetrate_fixed RES)
 /** Time a self-destructed 浮游单元 needs to come back and lock again (s) [ASSUMED]. */
@@ -538,7 +540,8 @@ function goldenglow(bb, chess, def) {
   const boomP = num(t0['attack@prob'], 0.015), boomMax = Math.max(1, Math.floor(num(t0['attack@max_stack_cnt'], 40)));
   const boomScale = num(t0['attack@atk_scale_2'], 3), BOOM_R = 1.1;
   const sluggish = num(bb['attack@sluggish'], 0);
-  const drones = 1 + Math.max(0, Math.floor(num(bb['attack@cnt'], 1)));
+  // S3 stops her attack and sends every 浮游单元; S1 / S2 only send the skill's extra ones (her own keeps attacking)
+  const drones = (S3 ? 1 : 0) + Math.max(0, Math.floor(num(bb['attack@cnt'], 1)));
   const g = grid(def.skill?.rangeGrid);
   const ok = (unit, e) => !!e && e.alive && !e.hidden && canTargetEnemy(unit, e, { canHitFly: true });
   const candidates = (battle, unit) => (S3 ? battle.enemies.filter((e) => ok(unit, e)) : enemiesOnRange(battle, unit).filter((e) => ok(unit, e)));
@@ -588,7 +591,7 @@ function goldenglow(bb, chess, def) {
   };
   const recall = (unit) => { if (unit.mem.gd) unit.mem.gdBoom = unit.mem.gd.drones.map((d) => d.boom); unit.mem.gd = null; };
   const spec = (extra) => ({
-    attack: { noAttack: true },
+    ...(S3 ? { attack: { noAttack: true } } : {}),
     onStart({ battle, unit }) { release(battle, unit); },
     onTick({ battle, unit, dt }) { tickDrones(battle, unit, dt); },
     onEnd({ unit }) { recall(unit); },
