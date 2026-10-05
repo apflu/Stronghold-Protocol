@@ -51,6 +51,23 @@ const get = (port, p, cookie = null) => new Promise((resolve, reject) => {
   req.on('error', reject);
 });
 const cookieOf = (res) => String(res.headers['set-cookie']?.[0] || '').split(';')[0];
+/** The confirm button of an invite page: POST /invite { invite } (the only request that registers a device). */
+const post = (port, code, cookie = null) => new Promise((resolve, reject) => {
+  const body = `invite=${encodeURIComponent(code)}`;
+  const req = http.request({ host: '127.0.0.1', port, path: '/invite', method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', 'content-length': Buffer.byteLength(body), ...(cookie ? { cookie } : {}) } }, (res) => {
+    res.resume();
+    res.on('end', () => resolve({ status: res.statusCode, headers: res.headers }));
+  });
+  req.on('error', reject);
+  req.end(body);
+});
+/** Open an invite link and press its button → the response of the POST. */
+const join = async (port, code, cookie = null) => {
+  const page = await get(port, `/?invite=${encodeURIComponent(code)}`, cookie);
+  assert.equal(page.status, 200, 'the link shows the confirm page');
+  assert.equal(page.headers['set-cookie'], undefined, 'opening the link sets no cookie');
+  return post(port, code, cookie);
+};
 const hello = async (port, cookie, name) => {
   const c = await TestClient.connect(`ws://127.0.0.1:${port}/ws`, { wsOptions: cookie ? { headers: { cookie } } : {} });
   const w = await c.hello(name);
@@ -71,13 +88,20 @@ test('server (SP_ACCESS=invite): the gate, invite links, the WebSocket and one n
     assert.equal((await get(port, '/js/main.js')).status, 403, 'static files too');
     assert.equal((await get(port, '/healthz')).status, 200, '/healthz stays open');
     assert.equal((await get(port, '/?invite=bad.code')).status, 403);
-    const a = await get(port, `/?invite=${encodeURIComponent(code)}`);
-    assert.equal(a.status, 302);
+    // opening the link registers nothing (link previews / safety scanners fetch it): only the button's POST does
+    for (let i = 0; i < 5; i++) assert.equal((await get(port, `/?invite=${encodeURIComponent(code)}`)).status, 200);
+    assert.equal(new AccessStore(file).invite(splitCode(code).id).devices.length, 0, 'no device from page views');
+    assert.equal((await post(port, 'bad.code')).status, 403);
+    const a = await join(port, code);
+    assert.equal(a.status, 303);
     assert.equal(a.headers.location, '/');
     assert.match(String(a.headers['set-cookie']), /HttpOnly; SameSite=Lax/);
     const ca = cookieOf(a);
     assert.equal((await get(port, '/', ca)).status, 200, 'with the cookie the site opens');
-    const cb = cookieOf(await get(port, `/?invite=${encodeURIComponent(code)}`));
+    const cb = cookieOf(await join(port, code));
+    const again = await get(port, `/?invite=${encodeURIComponent(code)}`, ca);
+    assert.equal(again.status, 302, 'a device already on the invite goes straight on');
+    assert.equal(again.headers['set-cookie'], undefined);
     assert.notEqual(cb, ca, 'a second device gets its own cookie');
     await assert.rejects(TestClient.connect(`ws://127.0.0.1:${port}/ws`), 'the WebSocket needs the cookie too');
     // one nickname: the first device's, adopted by the others; a rename on any device moves the invite's
@@ -116,7 +140,7 @@ test('server (SP_ACCESS=host): everyone plays, only invited devices create rooms
   try {
     const port = srv.port;
     assert.equal((await get(port, '/')).status, 200, 'the site is open');
-    const cm = cookieOf(await get(port, `/?invite=${encodeURIComponent(code)}`));
+    const cm = cookieOf(await join(port, code));
     const member = await hello(port, cm, 'Host');
     assert.equal(member.w.member, true);
     const guest = await hello(port, null, 'Guest');

@@ -320,6 +320,24 @@ p{margin:8px 0}a{color:#4ed8af}</style></head><body><main><h1>${status}</h1><p>$
 ${detail ? `<p style="opacity:.6">${escapeHtml(detail)}</p>` : ''}<p><a href="/">返回首页 · Back to home</a></p></main></body></html>`;
 }
 
+/**
+ * The invite link's confirm page: one button that POSTs the code to /invite (handleAccess). Nothing is registered by
+ * opening the link — chat apps fetch links for their previews / safety checks (QQ's scanner took a device slot of a
+ * fresh invite within 10 s: Mac Chrome 134 from a Tencent range, never back), and those never press the button.
+ */
+function invitePage(code, maxDevices) {
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>加入 · 卫戍协议：盟约</title><style>
+:root{color-scheme:dark}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#111614;color:#d8e3de;font:16px/1.6 "Noto Sans SC",system-ui,sans-serif}
+main{border:1px solid #2c3a35;padding:32px 40px;max-width:520px;text-align:center}h1{margin:0 0 8px;color:#4ed8af;font-size:28px;letter-spacing:2px}
+p{margin:8px 0}button{margin-top:16px;padding:10px 32px;font:inherit;font-weight:700;color:#0b1210;background:#4ed8af;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid #d8e3de;outline-offset:2px}</style></head><body><main><h1>卫戍协议：盟约</h1>
+<p>你收到了一个邀请链接。点击下方按钮，把这台设备加入邀请。</p>
+<p style="opacity:.6">每个邀请最多 ${maxDevices} 台设备；加入后这台设备以后直接访问即可。</p>
+<form method="post" action="/invite"><input type="hidden" name="invite" value="${escapeHtml(code)}"><button type="submit">加入 · Join</button></form>
+</main></body></html>`;
+}
+
 function sendError(req, res, status, title, detail) {
   if (res.headersSent) { res.destroy(); return; }
   const body = Buffer.from(errorPage(status, title, detail));
@@ -702,6 +720,8 @@ export async function startServer(opts = {}) {
     if (url.length > MAX_URL_LENGTH) { sendError(req, res, 414, '请求地址过长 · URI too long'); return; }
     const parts = splitUrl(url);
     if (!parts) { sendError(req, res, 400, '请求地址无效 · Bad request'); return; }
+    // the invite confirm button (handleAccess): the only POST the site takes
+    if (access && req.method === 'POST' && parts.rawPath === '/invite') { await claimInvite(req, res); return; }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.setHeader('Allow', 'GET, HEAD');
       sendError(req, res, 405, '不支持的请求方法 · Method not allowed');
@@ -721,27 +741,45 @@ export async function startServer(opts = {}) {
     await serveStatic(req, res, parts.rawPath, parts.query);
   }
 
+  const inviteRefusal = (r) => (r && r.error === 'full' ? `这个邀请链接已经在 ${MAX_DEVICES} 台设备上使用过了，无法再添加新设备。需要更换设备请联系管理员。`
+    : r && r.error === 'revoked' ? '这个邀请链接已被管理员停用。' : '邀请链接无效，请确认链接完整（复制时不要漏掉末尾）。');
+
+  /**
+   * POST /invite (the confirm page's button, body invite=<code>): register this device on the invite, set its cookie
+   * and go to the site (303). The only place a device is claimed.
+   */
+  async function claimInvite(req, res) {
+    let body = '';
+    try {
+      for await (const chunk of req) { body += chunk; if (body.length > 2048) { sendError(req, res, 413, '请求过大 · Payload too large'); return; } }
+    } catch { sendError(req, res, 400, '请求地址无效 · Bad request'); return; }
+    const code = new URLSearchParams(body).get('invite') || '';
+    const addr = clientAddress(req, netOptions.trustProxy).ip;
+    const r = access.claim(code, { addr, ua: req.headers['user-agent'] || null, current: parseCookies(req.headers.cookie)[COOKIE_NAME] || null });
+    if (!r || !r.ok) { sendError(req, res, 403, '邀请链接无法使用 · Invite not usable', inviteRefusal(r)); return; }
+    if (!r.reused && eventLog.enabled) eventLog.write({ type: 'access.claim', invite: r.invite.id, note: r.invite.note, devices: r.invite.devices.filter((d) => !d.revoked).length, addr, ua: String(req.headers['user-agent'] || '').slice(0, 160) });
+    const https = String(req.headers['x-forwarded-proto'] || '').includes('https') || String(req.headers['cf-visitor'] || '').includes('https');
+    res.writeHead(303, {
+      Location: '/',
+      'Set-Cookie': `${COOKIE_NAME}=${encodeURIComponent(r.cookie)}; Path=/; Max-Age=${COOKIE_MAX_AGE_S}; HttpOnly; SameSite=Lax${https ? '; Secure' : ''}`,
+      'Cache-Control': 'no-store',
+    });
+    res.end();
+  }
+
   /** Invite links and the gate (server/access.js). Returns true when the request was answered here. */
   function handleAccess(req, res, parts) {
     const q = new URLSearchParams(parts.query || '');
     const code = q.get('invite');
     if (code) {
-      const cookies = parseCookies(req.headers.cookie);
-      const r = access.claim(code, { addr: clientAddress(req, netOptions.trustProxy).ip, ua: req.headers['user-agent'] || null, current: cookies[COOKIE_NAME] || null });
-      if (r && r.ok) {
-        if (!r.reused && eventLog.enabled) eventLog.write({ type: 'access.claim', invite: r.invite.id, note: r.invite.note, devices: r.invite.devices.filter((d) => !d.revoked).length, addr: clientAddress(req, netOptions.trustProxy).ip });
-        const https = String(req.headers['x-forwarded-proto'] || '').includes('https') || String(req.headers['cf-visitor'] || '').includes('https');
-        res.writeHead(302, {
-          Location: '/',
-          'Set-Cookie': `${COOKIE_NAME}=${encodeURIComponent(r.cookie)}; Path=/; Max-Age=${COOKIE_MAX_AGE_S}; HttpOnly; SameSite=Lax${https ? '; Secure' : ''}`,
-          'Cache-Control': 'no-store',
-        });
-        res.end();
-        return true;
-      }
-      const why = r && r.error === 'full' ? `这个邀请链接已经在 ${MAX_DEVICES} 台设备上使用过了，无法再添加新设备。需要更换设备请联系管理员。`
-        : r && r.error === 'revoked' ? '这个邀请链接已被管理员停用。' : '邀请链接无效，请确认链接完整（复制时不要漏掉末尾）。';
-      sendError(req, res, 403, '邀请链接无法使用 · Invite not usable', why);
+      // opening the link registers nothing: a device already on this invite goes on, any other gets the confirm page
+      const r = access.peek(code, { current: parseCookies(req.headers.cookie)[COOKIE_NAME] || null });
+      if (r && r.ok && r.reused) { res.writeHead(302, { Location: '/', 'Cache-Control': 'no-store' }); res.end(); return true; }
+      if (!r || !r.ok) { sendError(req, res, 403, '邀请链接无法使用 · Invite not usable', inviteRefusal(r)); return true; }
+      if (eventLog.enabled) eventLog.write({ type: 'access.view', invite: r.invite.id, note: r.invite.note, addr: clientAddress(req, netOptions.trustProxy).ip, ua: String(req.headers['user-agent'] || '').slice(0, 160) });
+      const page = Buffer.from(invitePage(code, r.invite.maxDevices || MAX_DEVICES));
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': page.length, 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
+      res.end(req.method === 'HEAD' ? undefined : page);
       return true;
     }
     if (identify(req)) return false;

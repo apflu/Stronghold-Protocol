@@ -208,7 +208,7 @@ node tools/logs.mjs match ABCD --dir ~/stronghold-logs --acts   # 某个房间�
 
 一局完整的同盟模拟约 2 MB；日志不会自动清理。
 
-准入（可选）：`SP_ACCESS=invite` 时只有用邀请链接打开过本站的设备能进入（页面、静态资源和 WebSocket 都检查；`/healthz` 不受限）。一个链接对应一名玩家，最多 3 台设备，每台设备得到一个长期 cookie，不用再登录；同一链接下的所有设备共用一个昵称（第一台设备填的名字，之后任何一台改名都会同步）。邀请与设备记录保存在 `SP_ACCESS_FILE`（默认 `SP_LOG_DIR/access.json`，只存哈希）：
+准入（可选）：`SP_ACCESS=invite` 时只有用邀请链接打开过本站的设备能进入（页面、静态资源和 WebSocket 都检查；`/healthz` 不受限）。一个链接对应一名玩家，最多 3 台设备；打开链接只显示一个「加入」确认页，点了按钮才登记这台设备（聊天软件的链接预览、安全检查只抓页面，不会占名额），每台设备得到一个长期 cookie，不用再登录；同一链接下的所有设备共用一个昵称（第一台设备填的名字，之后任何一台改名都会同步）。邀请与设备记录保存在 `SP_ACCESS_FILE`（默认 `SP_LOG_DIR/access.json`，只存哈希）：
 
 ```bash
 docker run … -e SP_ACCESS=invite -e SP_LOG_DIR=/app/logs -v ~/stronghold-logs:/app/logs stronghold-protocol

@@ -1,7 +1,8 @@
 // server/access.js — invite-only access (SP_ACCESS = open | watch | host | invite; SP_ACCESS_FILE = the store).
 //
 // One invite = one player: its link (`/?invite=<code>`) can be opened on up to MAX_DEVICES devices; each device gets an
-// HttpOnly cookie (COOKIE_NAME) and never logs in again. Every device of an invite plays under the same nickname: the
+// HttpOnly cookie (COOKIE_NAME) and never logs in again. Opening the link only shows a confirm page (peek); the device is
+// registered when its button is pressed (a POST: claim), so chat link previews and safety scanners take no slot. Every device of an invite plays under the same nickname: the
 // first device's, then whatever any of them renames to (server/index.js nameFor → net.js onHelloMsg).
 //
 // Codes and cookies are `<id>.<secret>`: a public id (lookup, logs, the CLI) and a 256-bit random secret of which only a
@@ -145,6 +146,24 @@ export class AccessStore {
       res = { ok: true, cookie: c.code, invite: live };
     });
     return res;
+  }
+
+  /**
+   * Check an invite link without claiming a device → { ok, invite, reused } | { error: 'bad' | 'revoked' | 'full' }.
+   * The link page shows a confirm button (server/index.js): a link preview / safety scanner that only fetches the page
+   * takes no device slot; `claim` runs when the button is pressed.
+   */
+  peek(code, { current = null } = {}) {
+    const p = splitCode(code);
+    if (!p) return { error: 'bad' };
+    this.reload();
+    const inv = this.invite(p.id);
+    if (!inv || !sameHash(inv.hash, sha256(p.secret))) return { error: 'bad' };
+    if (inv.revoked) return { error: 'revoked' };
+    const mine = current ? this.verify(current) : null;
+    if (mine && mine.invite.id === inv.id) return { ok: true, invite: mine.invite, reused: true };
+    if (inv.devices.filter((x) => !x.revoked).length >= (inv.maxDevices || MAX_DEVICES)) return { error: 'full' };
+    return { ok: true, invite: inv, reused: false };
   }
 
   /** A device cookie → { invite, device } while both are live, else null. */
