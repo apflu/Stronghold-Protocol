@@ -428,7 +428,7 @@ test('白铁 铁钳号 and 突袭: with no enemy to reach, an idle 突袭 member
   clean(h);
 });
 
-test('白铁 铁钳号 and 突袭: with two 铁钳号 and no enemy, a 突袭 member alternates between them (every jump a new deployment)', () => {
+test('白铁 铁钳号 and 突袭: with two 铁钳号 and no enemy, a 突袭 member alternates between them (every jump a new deployment; a ready skill hops at once)', () => {
   const h = makeBattle({
     defs: { chess: { r_m: chessRec({ id: 'r_m', bonds: ['raidShip'], stats: { maxHp: 3000, atk: 500, def: 0, blockCnt: 1, bat: 1 } }) } },
     units: [
@@ -444,10 +444,12 @@ test('白铁 铁钳号 and 突袭: with two 铁钳号 and no enemy, a 突袭 mem
   const claws = devicesOf(h, P3);
   const near = () => claws.findIndex((c) => Math.max(Math.abs(r.tileR - c.tileR), Math.abs(r.tileC - c.tileC)) <= 1);
   const visits = [];
-  for (let t = 0; t < 60; t += 0.5) { h.run(0.5); const i = near(); if (i >= 0 && visits.at(-1) !== i) visits.push(i); }
-  assert.ok(visits.length >= 3, `alternates (${visits.join(' → ')})`);
-  for (let i = 1; i < visits.length; i++) assert.notEqual(visits[i], visits[i - 1]);
+  h.b.on('deploy', (c) => { if (c.unit === r) visits.push(near()); }); // where every landing puts it
+  h.run(60);
+  assert.ok(visits.length >= 3 && visits.every((i) => i >= 0), `lands beside a 铁钳号 each time (${visits.slice(0, 8).join(' → ')})`);
+  for (let i = 1; i < visits.length; i++) assert.notEqual(visits[i], visits[i - 1], 'never the one it stood by');
+  // (this member's skill is always ready: the ready trigger hops on at once, as in the game — not once per idle period)
   const jumps = h.hooksOf('deploy').filter((c) => c.unit === r && !c.initial).length;
-  assert.ok(jumps >= 4 && jumps <= 7, `one jump per idle period, not one per poll (${jumps} in 60 s)`);
+  assert.ok(jumps > 20, `a ready skill hops at once (${jumps} jumps in 60 s)`);
   clean(h);
 });

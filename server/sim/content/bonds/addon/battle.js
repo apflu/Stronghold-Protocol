@@ -323,8 +323,9 @@ function raidPoll(battle, st) {
     // all battle long; the official trick is to alternate between two, every jump a new deployment)
     const inRange = (t) => (u.rangeKeys || []).includes(Math.round(t.y) * COLS + Math.round(t.x));
     const all = (targets ??= raidTargets(battle, u, st.pid));
-    // a jump to a 铁钳号 waits for the idle trigger (not a ready skill): one every idle period, not one per poll
-    const list = all.filter((e) => e.side === 'enemy' || (!inRange(e) && idleOk));
+    // either trigger counts for a 铁钳号 too: with a ready skill the member hops on at once — the official behaviour the
+    // players reproduce (owner's decision 2026-10-05)
+    const list = all.filter((e) => e.side === 'enemy' || !inRange(e));
     if (!list.length) continue;
     // either trigger: raidTile only offers tiles with the target in range (without that a ready skill that finds no
     // target would redeploy — firing every 部署时 effect — at every poll; the idle trigger, which lacked it up to
