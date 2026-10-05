@@ -427,3 +427,27 @@ test('白铁 铁钳号 and 突袭: with no enemy to reach, an idle 突袭 member
   assert.ok(e.alive || e.hp < e.s.maxHp, 'and fights it');
   clean(h);
 });
+
+test('白铁 铁钳号 and 突袭: with two 铁钳号 and no enemy, a 突袭 member alternates between them (every jump a new deployment)', () => {
+  const h = makeBattle({
+    defs: { chess: { r_m: chessRec({ id: 'r_m', bonds: ['raidShip'], stats: { maxHp: 3000, atk: 500, def: 0, blockCnt: 1, bat: 1 } }) } },
+    units: [
+      { chessId: IRON, row: 10, col: 2, uid: 1 },
+      { kind: 'token', tokenId: P3, ownerUid: 1, row: 12, col: 8, uid: 3, dir: 'RIGHT' },
+      { kind: 'token', tokenId: P3, ownerUid: 1, row: 9, col: 4, uid: 4, dir: 'RIGHT' },
+      { chessId: 'r_m', row: 11, col: 2, uid: 2 },
+    ],
+    bonds: { raidShip: { count: 2, active: true, tier: 1, layers: 10 } }, hooks: ['deploy'], autoFinish: false, timeLimit: 120,
+  });
+  h.run(0.5);
+  const r = h.unit('r_m');
+  const claws = devicesOf(h, P3);
+  const near = () => claws.findIndex((c) => Math.max(Math.abs(r.tileR - c.tileR), Math.abs(r.tileC - c.tileC)) <= 1);
+  const visits = [];
+  for (let t = 0; t < 60; t += 0.5) { h.run(0.5); const i = near(); if (i >= 0 && visits.at(-1) !== i) visits.push(i); }
+  assert.ok(visits.length >= 3, `alternates (${visits.join(' → ')})`);
+  for (let i = 1; i < visits.length; i++) assert.notEqual(visits[i], visits[i - 1]);
+  const jumps = h.hooksOf('deploy').filter((c) => c.unit === r && !c.initial).length;
+  assert.ok(jumps >= 4 && jumps <= 7, `one jump per idle period, not one per poll (${jumps} in 60 s)`);
+  clean(h);
+});
