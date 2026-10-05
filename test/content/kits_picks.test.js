@@ -529,3 +529,22 @@ test('澄闪 信标的愤怒: per-drone stacks — a drone self-destructs by its
   assert.ok(hits / (booms.length || 1) <= 40 * 2, `at most 40 rolls per drone between booms (${hits} hits, ${booms.length} booms)`);
   clean(h);
 });
+
+test('澄闪 S1: she keeps attacking with her own 浮游单元; the skill extra one locks an enemy of her range', () => {
+  const h = makeBattle({
+    defs: { enemies: { enemy_dummy: dummy() } },
+    units: [{ chessId: GD, row: 10, col: 3, skillIndex: 0 }],
+    enemies: [{ key: 'enemy_dummy', pos: [10, 5] }, { key: 'enemy_dummy', pos: [11, 5] }],
+    hooks: ['damaged', 'attack'], captureNoisy: true, autoFinish: false, timeLimit: 60,
+  });
+  const u = h.unit(GD);
+  h.step();
+  assert.ok(u.skill.activate('test', { free: true }));
+  const a0 = h.hooksOf('attack').filter((c) => c.attacker === u).length;
+  h.run(6);
+  assert.ok(h.hooksOf('attack').filter((c) => c.attacker === u).length > a0 + 2, 'her own attacks go on');
+  const locked = new Set(h.hooksOf('damaged').filter((c) => c.source === u && (c.dmg?.tags || []).includes('droneAttack')).map((c) => c.target));
+  assert.equal(locked.size, 1, 'one extra 浮游单元 locks');
+  assert.equal(u.mem.gd.drones.length, 1);
+  clean(h);
+});
