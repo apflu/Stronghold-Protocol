@@ -189,10 +189,7 @@ const BOT_REHEARSAL_DEFAULT = 3;
 export const BOT_ASSIST = Object.freeze({ funds: 2, shopLuck: 0.4, lateTierFrom: 8, lateTier: 1.5 });
 export const BOT_ASSIST_DIFFICULTIES = Object.freeze(['HARD', 'ABYSS']);
 /** SP_BOT_ASSIST → boolean. */
-/**
- * SP_BOOST (the per-player 轮回之终末 box of the room, seats[].boost): coins per round start and the chance that one chess slot
- * of each shop roll comes from the player's own unmerged operators (as the AI assist's lucky slot, one slot only).
- */
+/** SP_BOOST (the per-player 轮回之终末 box of the room, seats[].boost): its numbers (PlayerState). */
 export const BOOST_DEFAULT = Object.freeze({ funds: 4, shopLuck: 0.4 });
 /** SP_BOOST → null (off) | { funds, shopLuck }: "1" / "on" = BOOST_DEFAULT, "<funds>,<luck>" (e.g. "4,0.4") = custom. */
 export function parseBoost(v) {

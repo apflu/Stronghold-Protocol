@@ -149,8 +149,7 @@ export const BOOST_LORE = Object.freeze([
   '正如你渴望的那样，心跳将会愈发猛烈。',
 ]);
 
-/** 轮回之终末 (SP_BOOST): the gain, the price (red), a lore line (grey). `boost` = room.state.boostable. The lucky shop
- * slot is left unsaid on purpose (players just feel lucky). */
+/** 轮回之终末 (SP_BOOST): the gain, the price (red), a lore line (grey). `boost` = room.state.boostable. */
 export function BoostTip({ boost }) {
   const [lore] = useState(() => BOOST_LORE[Math.floor(Math.random() * BOOST_LORE.length)]);
   const funds = boost?.funds ?? 4;
