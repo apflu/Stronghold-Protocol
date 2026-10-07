@@ -54,7 +54,7 @@ test('谢拉格 wind alone: the frozen share grows with the layers (60 → 26 s,
   close(windTimeline(300).frozenBetween(100, 150), 50, 0.2, '300 layers: 50 s of cold covers the 50 s cycle');
 });
 
-test('友方寒冷: the pair becomes the freeze; a lone cold on a frozen enemy is a cold and does not extend the freeze', () => {
+test('友方寒冷: 2 layers become the freeze (the longer time); colds on a frozen enemy never extend it, they bank', () => {
   const h = makeBattle({
     defs: { enemies: { enemy_dummy: enemyRec({ key: 'enemy_dummy', hp: 1e6, speed: 0 }) } },
     enemies: [{ key: 'enemy_dummy', pos: [11, 8] }], content: 'none', autoFinish: false, timeLimit: 60, hooks: ['statusApplied'],
@@ -64,15 +64,59 @@ test('友方寒冷: the pair becomes the freeze; a lone cold on a frozen enemy i
   h.b.applyStatus(e, 'cold', { duration: 6 });
   h.b.applyStatus(e, 'cold', { duration: 4 });
   close(e.findBuff('freeze').timeLeft, 6, 1e-6, 'max of the pair');
-  assert.equal(e.findBuff('cold'), null, 'no cold left');
+  assert.equal(e.findBuff('cold'), null, 'no layer left');
   h.run(1);
   h.b.applyStatus(e, 'cold', { duration: 10 });
-  close(e.findBuff('freeze').timeLeft, 5, 0.05, 'a third cold does not freeze again (it has no partner)');
-  close(e.findBuff('cold').timeLeft, 10, 1e-6, 'it waits as a cold');
-  h.b.applyStatus(e, 'cold', { duration: 2 });
-  close(e.findBuff('freeze').timeLeft, 10, 1e-6, 'a fourth one pairs with it: max(10, 2)');
-  assert.equal(e.findBuff('cold'), null);
-  assert.equal(h.hooksOf('statusApplied').filter((c) => c.status === 'freeze').length, 2, 'two pairs, two freezes');
+  close(e.findBuff('freeze').timeLeft, 5, 0.05, 'a third cold does not touch the freeze');
+  close(e.findBuff('cold').timeLeft, 10, 1e-6, 'it waits as a cold (one layer)');
+  h.b.applyStatus(e, 'cold', { duration: 8 });
+  close(e.findBuff('freeze').timeLeft, 5, 0.05, 'a fourth one does not extend the freeze either: 不会再被多次冻结');
+  assert.equal(h.hooksOf('statusApplied').filter((c) => c.status === 'freeze').length, 1, 'one freeze so far');
+});
+
+test('友方寒冷: the moment the freeze ends, 2 banked layers become the next freeze (a chain until fewer than 2 are left)', () => {
+  const h = makeBattle({
+    defs: { enemies: { enemy_dummy: enemyRec({ key: 'enemy_dummy', hp: 1e6, speed: 0 }) } },
+    enemies: [{ key: 'enemy_dummy', pos: [11, 8] }], content: 'none', autoFinish: false, timeLimit: 60, hooks: ['statusApplied'],
+  });
+  h.step();
+  const e = h.enemy('enemy_dummy');
+  const freezes = () => h.hooksOf('statusApplied').filter((c) => c.status === 'freeze');
+  h.b.applyStatus(e, 'cold', { duration: 3 });
+  h.b.applyStatus(e, 'cold', { duration: 3 });   // freeze 3 s
+  h.run(1);
+  for (const d of [9, 7, 12, 4]) h.b.applyStatus(e, 'cold', { duration: d }); // banked at t ≈ 1: until 10, 8, 13, 5
+  assert.equal(freezes().length, 1);
+  h.run(2.1);                                     // t ≈ 3.1: the first freeze ended at 3
+  assert.equal(freezes().length, 2, 'the chain: a new freeze at once');
+  assert.ok(freezes()[1].entered, 'a new 进入冻结');
+  close(e.findBuff('freeze').timeLeft, 10 - 3 - 0.1, 0.05, 'the oldest 2 layers (until 10 and 8): the longer one');
+  h.run(7);                                       // t ≈ 10.1: that freeze ended at 10; layers left: until 13 (5 expired)
+  assert.equal(freezes().length, 2, 'one layer left: no third freeze');
+  assert.ok(!e.s.flags.freeze && e.findBuff('cold'), 'cold, not frozen');
+  h.b.applyStatus(e, 'cold', { duration: 1 });
+  assert.equal(freezes().length, 3, 'its next cold pairs with it');
+});
+
+test('友方寒冷: a layer that runs out while the enemy is frozen is lost; a skill\'s own freeze is followed by the banked layers too', () => {
+  const h = makeBattle({
+    defs: { enemies: { enemy_dummy: enemyRec({ key: 'enemy_dummy', hp: 1e6, speed: 0 }) } },
+    enemies: [{ key: 'enemy_dummy', pos: [11, 8] }], content: 'none', autoFinish: false, timeLimit: 60, hooks: ['statusApplied'],
+  });
+  h.step();
+  const e = h.enemy('enemy_dummy');
+  const freezes = () => h.hooksOf('statusApplied').filter((c) => c.status === 'freeze');
+  h.b.applyStatus(e, 'freeze', { duration: 4 }); // a direct freeze
+  h.b.applyStatus(e, 'cold', { duration: 2 });   // runs out at 2, before the freeze ends
+  h.b.applyStatus(e, 'cold', { duration: 6 });
+  h.run(4.1);
+  assert.equal(freezes().length, 1, 'one layer left at the end: no chain');
+  h.run(2);                                      // t ≈ 6.1: that last layer (until 6) is gone too
+  h.b.applyStatus(e, 'freeze', { duration: 2 });
+  h.b.applyStatus(e, 'cold', { duration: 9 });
+  h.b.applyStatus(e, 'cold', { duration: 9 });
+  h.run(2.1);
+  assert.equal(freezes().length, 3, 'two layers banked during the direct freeze: the chain follows it');
 });
 
 test('敌方寒冷 on an operator keeps the old rule: the freeze and the longer cold both stay', () => {
