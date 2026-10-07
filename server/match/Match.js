@@ -130,8 +130,9 @@
 //
 // Disconnect / leave policy (research 06 §10.3 + DESIGN §6.6):
 //   * disconnected human: the seat keeps playing its last lineup; draft turns and prep auto-resolve at their
-//     deadlines (band → 华法琳, 机变 → a random remaining card, prep → auto-ready with temp auto-resolved). Nothing is
-//     bought for them unless they toggled "AI 托管" (g.autoplay { on: true }), which lets the bot play the seat.
+//     deadlines (band → 华法琳, 机变 → the selected card while free (g.choiceFocus), else a random remaining one,
+//     prep → auto-ready with temp auto-resolved). Nothing is bought for them unless they toggled "AI 托管"
+//     (g.autoplay { on: true }), which lets the bot play the seat.
 //   * departed human (onLeave): 中途退出 counts as elimination (research 00-INDEX §3, 01 §9, 06 §7 / §10.3) — every
 //     copy the seat holds returns to the shared pool at once, the seat leaves the round loop, the Final Assault
 //     pairing and the boss pool; its own running normal battle is force-ended. The seat shows status 'left'. When no

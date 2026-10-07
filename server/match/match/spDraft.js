@@ -52,7 +52,10 @@ export class MatchSpDraft {
         if (!ps) return;
         const avail = s.cards.map((c) => c.idx).filter((i) => s.taken[i] == null);
         if (!avail.length) { this.finishSpDraft(); return; }
-        this._applyCard(ps, avail[Math.floor(this.rngDraft() * avail.length)]);
+        // the card the player had selected (g.choiceFocus: a first tap without the confirming second one) while it is
+        // still free, else a random one (players' report: 月鸦 selected 杰斯顿, the turn ran out, he got W)
+        const focus = s.focus?.get(ps.playerId);
+        this._applyCard(ps, avail.includes(focus) ? focus : avail[Math.floor(this.rngDraft() * avail.length)]);
       });
       s.turnDeadline = this.deadline;
     } else {
@@ -73,6 +76,20 @@ export class MatchSpDraft {
       if (!avail.length) return;
       this._applyCard(ps, botPickCard(this, ps, this.sp.cards, avail));
     });
+  }
+
+  /**
+   * g.choiceFocus { idx? }: the card the player has selected in the 机变 overlay (its first tap; the second one sends
+   * g.choice). Only a timed-out turn reads it. A missing / null idx clears it.
+   */
+  choiceFocus(ps, idx) {
+    if (this.phase !== PHASE.SP_DRAFT || !this.sp) return fail(ERR.WRONG_PHASE);
+    if (this.sp.picks[ps.playerId] != null) return fail(ERR.ALREADY);
+    if (!(this.sp.focus instanceof Map)) this.sp.focus = new Map();
+    if (idx == null) { this.sp.focus.delete(ps.playerId); return OK; }
+    if (!Number.isInteger(idx) || idx < 0 || idx >= this.sp.cards.length) return fail(ERR.BAD_TARGET);
+    this.sp.focus.set(ps.playerId, idx);
+    return OK;
   }
 
   pickCard(ps, idx) {
