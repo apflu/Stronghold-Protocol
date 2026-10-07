@@ -4,6 +4,23 @@
 import { COLORS, DMG_STYLE } from '../style.js';
 import { SKILL_GOLD, easeOut } from './limits.js';
 
+/**
+ * Where pop number `i` starts (screen px): beside the bond strip's right end (`anchor` { x, y }: the first pop just right
+ * of it, the next ones further right — icon 46 px + its "+N" label — kept on screen), else around the top centre of the
+ * field (`fieldTop()`), five abreast.
+ * @param {{ width:number, height:number }} size
+ * @param {number} i
+ * @param {{ x:number, y:number } | null} anchor
+ * @param {() => number} fieldTop
+ * @returns {{ x:number, top:number }}
+ */
+export function popSpot(size, i, anchor, fieldTop) {
+  if (anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y)) {
+    return { x: Math.min(size.width - 60, anchor.x + 40 + ((Math.max(1, i) - 1) % 5) * 84), top: Math.max(40, anchor.y) };
+  }
+  return { x: size.width / 2 + (i % 5 - 2) * 70, top: fieldTop() };
+}
+
 export class FxArrivals {
   deploy(view) {
     if (!view) return;
@@ -65,13 +82,17 @@ export class FxArrivals {
     this.particle('smoke', p.x, p.y, { add: false, tint: 0x8a7a60, life: 0.7, s0: s / 128 * 0.6, s1: s / 128 * 1.5, a0: 0.45, a1: 0 });
   }
 
-  /** Screen-space pop (bond layer gain / bounty coins). `icon` = texture or null. */
-  pop(icon, label, tint, i = 0) {
+  /**
+   * Screen-space pop (bond layer gain / bounty coins). `icon` = texture or null. `strip`: a bond layer pop — it lines up
+   * right of the bond strip's last disc (ctx.popAnchor; the strip, DOM over the canvas, covered pops at the top centre
+   * once it held many bonds); otherwise, or with no strip shown (collapsed, GitHub #142), the top centre (popSpot).
+   */
+  pop(icon, label, tint, i = 0, { strip = false } = {}) {
     const P = this.P;
     const size = this.ctx.screenSize();
-    const top = this.ctx.fieldTop ? this.ctx.fieldTop() : size.height * 0.2;
+    const anchor = strip && this.ctx.popAnchor ? this.ctx.popAnchor() : null;
+    const { x, top } = popSpot(size, i, anchor, () => (this.ctx.fieldTop ? this.ctx.fieldTop() : size.height * 0.2));
     const c = new P.Container();
-    const x = size.width / 2 + (i % 5 - 2) * 70;
     c.position.set(x, top);
     if (icon) {
       const glow = new P.Sprite(this.tex.glow);
