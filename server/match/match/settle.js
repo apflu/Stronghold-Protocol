@@ -8,6 +8,7 @@ import { uniteSurvivors } from '../unite.js';
 import { buildResult } from '../results.js';
 import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
 import { msg } from '../../../shared/i18n.js';
+import { logMatchEnd } from '../eventlog.js';
 
 export class MatchSettle {
   settle(plan, uniteResult) {
@@ -142,6 +143,7 @@ export class MatchSettle {
     const { t, ...summary } = result;
     void t;
     summary.errors = this.errorCount;
+    try { logMatchEnd(this, summary); } catch { /* logging never ends a match */ }
     try { this.onEndFn(summary); } catch (e) { this.reportError('onEnd', e); }
   }
 }
