@@ -8,6 +8,10 @@
 // fake (true → test/match/fakeBattle.js as BattleClass), script (FakeBattle.script), registry, instant (virtual
 // scheduler runs battles synchronously; default true), timerScale, battleContent, botRehearsal (default 0),
 // botSliceMs (bot rehearsal slice budget; default: unbounded in virtual time).
+// The host's knobs (server/match/hostOptions.js), off here unless given — never read from their SP_* variables, except
+// factionExclude (SP_FACTION_EXCLUDE) and a bossHpMul passed as undefined (SP_BOSS_HP_MUL*): botAssist, botPreferBond,
+// botHelpLast, botPreferBand, bountyCoins, bossHpMul, bonusFunds, bonusFundsFor, boost (SP_BOOST numbers or '1') with
+// boostSeats (the humans' ids that ticked the 轮回之终末 box).
 // Combat mode: clientCombat (default false here: the legacy server-run mode most suites were written for; production
 // defaults to client-side combat, DESIGN §14). With clientCombat: true every human gets a scripted browser
 // (test/match/simClient.js SimClient: h.clients) unless clients: false; pace 'instant' | 'paced', perPlayer
@@ -36,7 +40,7 @@ export function makeMatch(o = {}) {
     seats = [];
     const humans = o.humans ?? 1;
     const bots = mode === 'solo' ? 0 : (o.bots ?? 0);
-    for (let i = 0; i < humans; i++) seats.push({ seat: seats.length, playerId: `p_${i}`, name: `P${i}`, isBot: false, connected: true });
+    for (let i = 0; i < humans; i++) seats.push({ seat: seats.length, playerId: `p_${i}`, name: `P${i}`, isBot: false, connected: true, ...((o.boostSeats || []).includes(`p_${i}`) ? { boost: true } : {}) });
     for (let i = 0; i < bots; i++) seats.push({ seat: seats.length, playerId: `ai_${i}`, name: `AI${i}`, isBot: true, connected: true });
   }
   const sched = new VirtualScheduler({ instantCombat: o.instant !== false });
@@ -74,6 +78,15 @@ export function makeMatch(o = {}) {
     // simulation work of full-match suites; test/match/bot.test.js covers it
     botRehearsal: o.botRehearsal ?? 0,
     botSliceMs: o.botSliceMs,
+    botAssist: o.botAssist ?? false,
+    botPreferBond: o.botPreferBond ?? '',
+    botHelpLast: o.botHelpLast ?? false,
+    botPreferBand: o.botPreferBand ?? '',
+    bountyCoins: o.bountyCoins ?? '',
+    bossHpMul: 'bossHpMul' in o ? o.bossHpMul : 1,
+    bonusFunds: o.bonusFunds ?? 0,
+    bonusFundsFor: o.bonusFundsFor ?? '',
+    boost: o.boost ?? null,
     clientCombat: o.clientCombat ?? false,
     verify: o.verify ?? 'off',
     headlessSliceMs: o.headlessSliceMs,

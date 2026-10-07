@@ -4,11 +4,13 @@
 //   * TRUST_PROXY ('auto' default: honour CF-Connecting-IP / X-Real-IP / X-Forwarded-For only from loopback/private
 //     peers such as a local cloudflared; '1' always; '0' never) → net.js trustProxy;
 //   * DEBUG → the console logger's debug level;
+//   * SP_BOOST → lobby.js `boost` (the 轮回之终末 box in rooms; server/match/hostOptions.js parseBoost);
 //   * the served directories (public/, data/, shared/ and the content packs' packs/ of this repository unless the
 //     options name others), and which startServer() options are handed on to net.js Network and lobby.js Lobby.
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseBoost } from '../match/hostOptions.js';
 
 /** Repository root. */
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -62,6 +64,8 @@ export function lobbyOptionsFrom(opts) {
   for (const k of LOBBY_OPTION_KEYS) {
     if (opts[k] != null) lobbyOptions[k] = opts[k];
   }
+  // SP_BOOST: rooms offer the 轮回之终末 box (`boost` option: true / false / the SP_BOOST syntax; server/match/hostOptions.js)
+  lobbyOptions.boost = opts.boost != null ? parseBoost(opts.boost === true ? '1' : opts.boost) : parseBoost(process.env.SP_BOOST);
   return lobbyOptions;
 }
 

@@ -75,6 +75,11 @@
 // Placement quality (tools/matchrun sweeps, research-faithful waves): the planner beats random layouts by ≈ 8 points
 // of kill rate and rehearsal adds ≈ 5 more; see docs/META.md §1.5. Old vs new decisions on the same seeds:
 // tools/botbench.mjs.
+// The host's knobs (server/match/hostOptions.js; off by default, AI seats only — never a human on AI 托管): SP_BOT_ASSIST
+// weighs operator power × lateTier from round lateTierFrom (lateTierMul; its coins and lucky shop slot live in
+// PlayerState), SP_BOT_PREFER_BOND builds one bond to its top threshold first (PREFER_BUY / PREFER_LINEUP),
+// SP_BOT_PREFER_BAND takes one strategy while it is free (botPickBand) — 阿米娅 there makes the bot build wide
+// (diverseThresholds).
 
 import { GEO } from '../../shared/constants.js';
 import { deriveSeed } from '../sim/rng.js';
@@ -126,6 +131,36 @@ const LEVEL_TARGET = [1, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5, 5, 6, 6, 6, 6];
  */
 export const DIY_PIECE_BONUS = 12;
 const TIER_POWER = [0, 10, 12.5, 15, 18, 21.5, 25];
+/** SP_BOT_ASSIST (hostOptions.js BOT_ASSIST): late rounds weigh operator power more (swap low tiers out for high ones). */
+const lateTierMul = (m) => (m.botAssist && m.round >= m.botAssist.lateTierFrom ? m.botAssist.lateTier : 1);
+// The host's bot knobs are for AI seats only: a human on AI 托管 / 暂离 keeps the plain bot play (context() sets
+// ctx.late / ctx.prefer from ps.isBot).
+/** SP_BOT_PREFER_BOND (m.botPreferBond): value of a member while the bond is short of its top threshold, and of a
+ *  lineup that reaches it (players asked for AI teammates that play 3 坚守). */
+const PREFER_BUY = 20;
+const PREFER_LINEUP = 30;
+/**
+ * 阿米娅 众志合一 (act1autochess_band2_buff): ATK / max HP + per 3 / 4 / 5+ active bonds — an AI seat holding it as the
+ * host's SP_BOT_PREFER_BAND builds wide: each reached threshold is worth DIVERSE_LINEUP (a little above PREFER_LINEUP,
+ * players' ask), a chess that would activate one more bond DIVERSE_BUY while the top threshold is not reached. [] for
+ * every other strategy, and without the knob (the plain bot play).
+ */
+const DIVERSE_LINEUP = 35;
+const DIVERSE_BUY = 8;
+function diverseThresholds(m, ps) {
+  const p = ps && ps.isBot && ps.bandId && ps.bandId === m.botPreferBand ? m.gd.band(ps.bandId)?.params : null;
+  if (!p || p.key !== 'act1autochess_band2_buff') return [];
+  const out = [];
+  for (let i = 1; Number.isFinite(p[`value_${i}`]); i++) out.push(p[`value_${i}`]);
+  return out;
+}
+/** Top threshold (distinct members) of the preferred bond, or 0 when none is set. */
+function preferTop(m) {
+  const b = m.botPreferBond ? m.gd.bond(m.botPreferBond) : null;
+  if (!b) return 0;
+  const th = Array.isArray(b.thresholds) && b.thresholds.length ? b.thresholds : [b.activeCount || 2];
+  return Math.max(...th);
+}
 /** Prep-side 特质 that keep adding bond layers every round / every refresh (a player's main layer engine). */
 const RECURRING_TRAIT_EVENTS = new Set(['SERVER_PREP_START', 'SERVER_PREP_FIN', 'SERVER_REFRESH_SHOP']);
 const LAYER_TRAIT_RE = /BOND|LAYER/;
@@ -144,6 +179,9 @@ export function botPickBand(m, ps) {
   const gd = ps?.gd || m.gd;
   const ids = gd.bandIds();
   if (!ids.length) return gd.defaultBandId;
+  // SP_BOT_PREFER_BAND (m.botPreferBand): an AI seat takes it while no teammate has (AI 托管 keeps the plain pick)
+  const pref = m.botPreferBand;
+  if (pref && ps && ps.isBot && ids.includes(pref) && !(typeof m.bandTaken === 'function' && m.bandTaken(pref, ps.playerId))) return pref;
   const lateFunds = (id) => /暂存/.test(String(gd.band(id)?.desc || ''));
   const offBond = (id) => gd.bandBondIds(id).some((b) => gd.modeInactiveBonds.has(b));
   const pairs = ids.map((id) => [id, offBond(id) ? 0 : Math.max(1, (gd.startLp(id) - 18) ** 2) * (m.isSolo && lateFunds(id) ? 0.02 : 1)]);
@@ -429,8 +467,9 @@ function roles(m, ps) {
  * once the focus has 3 owned members a member of another core bond is worth less unless it reaches a threshold (the
  * deploy cap holds about 6 members of one core bond + 2 others).
  */
-function bondValue(m, c, owned, focus, second = null) {
+function bondValue(m, c, owned, focus, second = null, pref = null) {
   let v = 0;
+  if (pref && ((c && c.bonds) || []).includes(pref) && (owned.counts.get(pref) || 0) < preferTop(m)) v += PREFER_BUY;
   const committed = focus && (owned.counts.get(focus) || 0) >= 3;
   for (const b of (c && c.bonds) || []) {
     const bond = m.gd.bond(b);
@@ -484,7 +523,7 @@ function traitsOf(m, c) {
 function unitBase(m, piece, ctx) {
   const c = chessRec(m, piece.id, ctx.ps);
   if (!c) return 0;
-  let v = power(c) + (piece.items ? piece.items.length * 5 : 0);
+  let v = power(c) * (ctx.late ?? 1) + (piece.items ? piece.items.length * 5 : 0);
   if (m.round <= 11) v += traitsOf(m, c).recurring * 4;
   if (c.attackKind === 'none' && !isHealer(c)) v -= 6;
   if (ctx.fly > 0 && hitsFly(c)) v += 2;
@@ -496,7 +535,7 @@ function unitBase(m, piece, ctx) {
 function pieceValue(m, ps, piece, ctx) {
   const c = chessRec(m, piece.id, ps);
   if (!c) return 0;
-  return unitBase(m, piece, ctx) + bondValue(m, c, ownedBonds(m, ps, piece.uid), ctx.focus, ctx.second) * 0.8;
+  return unitBase(m, piece, ctx) + bondValue(m, c, ownedBonds(m, ps, piece.uid), ctx.focus, ctx.second, ctx.prefer) * 0.8;
 }
 
 /**
@@ -523,6 +562,17 @@ function lineupScore(m, ps, set, ctx) {
     const bond = gd.bond(id);
     const w = bond && bond.isCore ? 14 : 9;
     v += b.tier * w + Math.min(12, (b.layers || 0) * 0.1) + (id === ctx.focus ? 6 : 0);
+  }
+  if (ctx.diverse && ctx.diverse.length) {
+    let active = 0;
+    for (const b of Object.values(bonds)) if (b.tier) active++;
+    for (const t of ctx.diverse) if (active >= t) v += DIVERSE_LINEUP;
+  }
+  const pref = ctx.prefer;
+  if (pref) {
+    const members = new Set();
+    for (const p of set) { const c = chessRec(m, p.id, ps); if (c && (c.bonds || []).includes(pref)) members.add(gd.baseIdOf(p.id)); }
+    if (members.size >= preferTop(m)) v += PREFER_LINEUP;
   }
   let blockers = 0;
   let air = 0;
@@ -579,7 +629,7 @@ function buyScore(m, ps, id, ctx) {
   const gd = ps?.gd || m.gd;
   const c = chessRec(m, id, ps);
   if (!c) return 0;
-  let s = power(c) * 0.6;
+  let s = power(c) * 0.6 * (ctx.late ?? 1);
   const tr = traitsOf(m, c);
   if (m.round <= 11) s += tr.recurring * 3 + tr.gain * 2 + tr.econ * (m.round <= 7 ? 2 : 0);
   const base = gd.baseIdOf(id);
@@ -593,7 +643,22 @@ function buyScore(m, ps, id, ctx) {
       else s += keep ? 14 : ctx.pairs < MAX_PAIRS && c.tier <= 3 ? 6 : 1;
     }
   }
-  if (!ctx.owned.bases.has(base)) s += bondValue(m, c, ctx.owned, ctx.focus, ctx.second);
+  if (!ctx.owned.bases.has(base)) s += bondValue(m, c, ctx.owned, ctx.focus, ctx.second, ctx.prefer);
+  // 阿米娅: a chess that would activate one more bond (its first threshold) while the band's top tier is not reached
+  if (ctx.diverse && ctx.diverse.length && !ctx.owned.bases.has(base)) {
+    const th0 = (bond) => (Array.isArray(bond.thresholds) && bond.thresholds.length ? bond.thresholds[0] : bond.activeCount || 2);
+    let activeNow = 0;
+    let opens = false;
+    for (const [b, n] of ctx.owned.counts) {
+      const bond = gd.bond(b);
+      if (bond && !gd.modeInactiveBonds.has(b) && n >= th0(bond)) activeNow++;
+    }
+    for (const b of c.bonds || []) {
+      const bond = gd.bond(b);
+      if (bond && !gd.modeInactiveBonds.has(b) && (ctx.owned.counts.get(b) || 0) + 1 === th0(bond)) opens = true;
+    }
+    if (opens && activeNow < Math.max(...ctx.diverse)) s += DIVERSE_BUY;
+  }
   // role needs
   if (isBlocker(c) && ctx.roles.blockers < 2) s += 10;
   if (hitsFly(c) && ctx.fly > 0 && ctx.roles.antiAir < 2) s += 8;
@@ -1182,7 +1247,11 @@ function context(m, ps) {
   const copies = copyCounts(m, ps);
   let pairs = 0;
   for (const [b, k] of copies) if (k + 1 >= mergeNeed(m, b)) pairs++;
-  return { ps, owned, focus: plan.focus, second: plan.second, keep: keeperBases(m, ps, plan), copies, pairs, roles: roles(m, ps), fly: model.flyTotal, model };
+  return {
+    ps, owned, focus: plan.focus, second: plan.second, keep: keeperBases(m, ps, plan), copies, pairs, roles: roles(m, ps), fly: model.flyTotal, model,
+    // the host's bot knobs (hostOptions.js): AI seats only
+    late: ps.isBot ? lateTierMul(m) : 1, prefer: ps.isBot ? m.botPreferBond : null, diverse: diverseThresholds(m, ps),
+  };
 }
 
 /** Normal copies owned per base (board, hand, temp). */

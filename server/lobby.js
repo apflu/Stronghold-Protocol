@@ -93,6 +93,9 @@
 //     time → room.closed {kicked} to it. A spectator in a LOBBY room may take a free player seat with room.join of the same
 //     code; a player never switches to spectating in place (ALREADY). Disconnect / grace / reconnect / expiry work as for
 //     a player seat (the seat is kept and given back on resume).
+//   * 轮回之终末 (SP_BOOST, the host's option `boost`; off by default): rooms carry `boostable { funds }` in room.state and
+//     every human may tick their own box with room.boost { on } before the match (kept on the session for the next rooms
+//     too; seats[].boost, shown to everyone). The match applies it (opts.seats[].boost, opts.boost — hostOptions.js).
 
 import { randomBytes, randomInt } from 'node:crypto';
 import { eventLog, logRoom, startRoomSnapshots } from './match/eventlog.js';
@@ -116,6 +119,7 @@ export const LOBBY_DEFAULTS = Object.freeze({
   soloReconnectWindowMs: null, // a dropped solo run stays resumable this long (null = data singleReconnectTime, 24 h)
   membersCreateOnly: false, // SP_ACCESS=host: only sessions on an invited device (session.access) create rooms
   guestJoinMisses: 10,     // SP_ACCESS=host: wrong room codes a guest network may try per minute (code guessing)
+  boost: null,            // SP_BOOST ({ funds, shopLuck } | null): rooms offer the 轮回之终末 box (room.boost; the match applies it)
 });
 
 /** Official `singleReconnectTime` (s) when the data lacks it (constData, research 01 §1). */
@@ -207,8 +211,9 @@ export class Room {
       difficulty: this.difficulty,
       inMatch: !!this.match,
       seats: this.seats.map((s) => (s
-        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
+        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left, ...(s.boost ? { boost: true } : {}) }
         : null)),
+      ...(this.boostable ? { boostable: this.boostable } : {}),
       spectators: this.spectators.map((s) => ({ playerId: s.playerId, name: s.name, connected: s.connected })),
     };
   }
@@ -322,6 +327,7 @@ export class Lobby {
       case 'room.kick': return this.kick(session, msg);
       case 'room.start': return this.start(session);
       case 'room.loadout': return this.loadout(session, msg);
+      case 'room.boost': return this.boost(session, msg);
       case 'room.ownership': return this.ownership(session, msg);
       case 'room.diy': return this.diy(session, msg);
       case 'room.spectate': return this.spectate(session, msg);
@@ -395,6 +401,7 @@ export class Lobby {
     if (!code) return fail(ERR.INTERNAL, 'no room code available');
     if (cur) this.removeMember(cur, session.playerId);
     const room = new Room(code, mode, difficulty, this.now());
+    room.boostable = this.opts.boost ? { funds: this.opts.boost.funds } : null; // the coins only (room.state)
     room.ownerKey = key;
     room.seats[0] = this.humanSeat(0, session);
     room.hostId = session.playerId;
@@ -515,6 +522,22 @@ export class Lobby {
     const seat = room.seatOf(session.playerId);
     if (seat.ready !== ready) {
       seat.ready = ready;
+      this.broadcastState(room);
+    }
+    return OK;
+  }
+
+  /** room.boost (SP_BOOST): the player's 轮回之终末 box — kept on the session (the next rooms too), applied at the next start. */
+  boost(session, { on }) {
+    if (!this.opts.boost) return fail(ERR.BAD_MSG, 'boost is off on this server');
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    session.boost = !!on;
+    const seat = room.seatOf(session.playerId);
+    if (seat && seat.boost !== session.boost) {
+      seat.boost = session.boost;
       this.broadcastState(room);
     }
     return OK;
@@ -696,6 +719,8 @@ export class Lobby {
       notOwned: s.isBot ? null : s.notOwned || null,
       // 0.2.0 自选编队: the human's checked DIY picks (bots field no 自选 piece [ASSUMED])
       diy: s.isBot ? null : s.diy || null,
+      // SP_BOOST: the human ticked the 轮回之终末 box
+      boost: !s.isBot && !!s.boost,
     }));
     // lastPublic / results: the latest m.public broadcast and the m.result frames (encoded), kept for the replay.
     const ctx = { live: true, ended: false, disposed: false, match: null, lastPublic: null, sharedResult: null, results: new Map() };
@@ -719,6 +744,8 @@ export class Lobby {
         send: (playerId, msg) => (ctx.live ? this.matchSend(room, ctx, playerId, msg) : false),
         broadcast: (msg) => { if (ctx.live) this.matchBroadcast(room, ctx, msg); },
         onEnd: (summary) => this.onMatchEnd(room, ctx, summary),
+        // SP_BOOST: the box's numbers (the match reads SP_BOOST itself without them)
+        ...(this.opts.boost ? { boost: this.opts.boost } : {}),
       });
       ctx.match = match;
       room.match = match;
@@ -958,6 +985,7 @@ export class Lobby {
       loadout: session.loadout || null,
       notOwned: session.notOwned || null,
       diy: session.diy || null,
+      boost: !!(this.opts.boost && session.boost),
     };
   }
 

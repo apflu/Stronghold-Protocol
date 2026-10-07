@@ -790,8 +790,8 @@ export function runMatch(cfg) {
   if (cfg.human?.diy) {
     const h = m.players.get('h_0');
     const roll = h._rollChessSlot.bind(h);
-    h._rollChessSlot = () => {
-      const slot = roll();
+    h._rollChessSlot = (i) => {
+      const slot = roll(i);
       if (slot && h.diyPickOf(slot.id)) diyRolls.set(m.round, [...(diyRolls.get(m.round) || []), slot.id.replace(/^chess_char_/, '')]);
       return slot;
     };

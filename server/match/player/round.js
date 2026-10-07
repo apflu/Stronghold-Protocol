@@ -20,6 +20,11 @@ export class PlayerRound {
     this.m.dispatch(this, 'onIncome', ev);
     const nonNeg = (v) => (Number.isFinite(v) && v > 0 ? Math.trunc(v) : 0);
     this.addFunds(nonNeg(ev.income) + nonNeg(ev.pending), { reason: 'income' });
+    // the host's extra coins (hostOptions.js), kept out of stats.fundsGained (the result screen): an AI teammate's
+    // (SP_BOT_ASSIST), the solo human's practice coins (SP_BONUS_FUNDS), the 轮回之终末 box's (SP_BOOST)
+    if (this.isBot && this.m.botAssist) { this.funds += this.m.botAssist.funds; this.dirty(); }
+    if (!this.isBot && this.m.bonusFunds) { this.funds += this.m.bonusFunds; this.dirty(); }
+    if (this.boost && this.boost.funds > 0) { this.funds += this.boost.funds; this.dirty(); }
     // temp is NOT wiped here: the last prep's deadline resolved what the player could act on (endPrep); what overflowed
     // after it (battle-result grants, SETTLE merges, returned equipment) is shown and usable in this prep (tempDue).
     // Likewise reward offers of the last prep already expired at its end; what is still queued was earned after it —

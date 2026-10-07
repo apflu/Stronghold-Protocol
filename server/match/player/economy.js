@@ -60,10 +60,46 @@ export class PlayerEconomy {
     return Number.isFinite(p) ? Math.max(0, Math.round(p)) : slot.basePrice;
   }
 
-  _rollChessSlot() {
+  /** @param {number|null} [i] the chess slot's index in a roll (the host's lucky slot is slot 0 only) */
+  _rollChessSlot(i = null) {
     // the slotted 自选 pieces join the draw once the 调度中心 reaches their slot's level (player/diy.js diyRollEntries)
     const id = this.m.pool.roll(this.m.rngShop, { maxTier: this.shop.level, extra: this.diyRollEntries() });
+    // the normal roll is always drawn first, so the shop rng stream (every player's rolls) is the same with or without
+    // the host's lucky slot (AI assist / 轮回之终末 box), which only the first chess slot of a roll takes
+    const lucky = i === 0 ? this._assistChessSlot() ?? this._boostChessSlot() : null;
+    if (lucky) return lucky;
     return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
+  }
+
+  /**
+   * A copy-weighted draw among the bases this player owns but has not merged, leaving out those another alive player
+   * holds a pair of (the player merges more without taking what a teammate is merging) — the host's lucky slot.
+   */
+  _luckyChessSlot(rng, extra = null) {
+    const others = (this.m.order || []).filter((q) => q !== this && q.alive);
+    const filter = (id) => !this.gd.isGolden(id) && this.countCopies(id) >= 1 && !others.some((q) => q.countCopies(id) >= 2);
+    const id = this.m.pool.roll(rng, { maxTier: this.shop.level, filter, extra });
+    return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
+  }
+
+  /**
+   * SP_BOT_ASSIST (hostOptions.js BOT_ASSIST): with probability shopLuck an AI teammate's first chess slot of a roll is
+   * the lucky draw, on the bots' rng stream only (the slot's normal rngShop draw is still made). null = keep the roll.
+   */
+  _assistChessSlot() {
+    const a = this.m.botAssist;
+    if (!a || !this.isBot || !(a.shopLuck > 0) || this.m.rngBots() >= a.shopLuck) return null;
+    return this._luckyChessSlot(this.m.rngBots);
+  }
+
+  /**
+   * SP_BOOST (轮回之终末 box): with probability boost.shopLuck the first chess slot of a roll is the lucky draw (the
+   * player's 自选 stock included), on its own rng stream (Match.rngBoost). null = keep the normal roll.
+   */
+  _boostChessSlot() {
+    const b = this.boost;
+    if (!b || !(b.shopLuck > 0) || this.m.rngBoost() >= b.shopLuck) return null;
+    return this._luckyChessSlot(this.m.rngBoost, this.diyRollEntries());
   }
 
   _rollItemSlot() {
@@ -84,7 +120,7 @@ export class PlayerEconomy {
     const keep = (s, kind) => (keepFrozen && s && s.kind === kind && !s.sold && s.frozen ? { ...s } : null);
     // frozen slots keep their position; sold / empty / unfrozen positions are rerolled
     const slots = [];
-    for (let i = 0; i < nChess; i++) slots.push(keep(oldChess[i], 'chess') ?? this._rollChessSlot());
+    for (let i = 0; i < nChess; i++) slots.push(keep(oldChess[i], 'chess') ?? this._rollChessSlot(i));
     for (let i = 0; i < nItem; i++) slots.push(keep(oldItems[i], 'item') ?? this._rollItemSlot());
     this.shop.slots = slots;
     this.shop.layout = { chess: nChess, item: nItem };

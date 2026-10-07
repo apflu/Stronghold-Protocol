@@ -4,7 +4,7 @@
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
 import { PHASE, ERR } from '../../../shared/constants.js';
-import { generateDraft, applyCard, bountyBattles, isMultiRoundBounty } from '../choices.js';
+import { generateDraft, applyCard, bountyBattles, isMultiRoundBounty, bountyCoinOf, withBountyCoin } from '../choices.js';
 import { weightedPick } from '../waves.js';
 import { botPickCard } from '../bot.js';
 import { OK, fail, DELAYS } from './common.js';
@@ -52,7 +52,10 @@ export class MatchSpDraft {
         if (!ps) return;
         const avail = s.cards.map((c) => c.idx).filter((i) => s.taken[i] == null);
         if (!avail.length) { this.finishSpDraft(); return; }
-        this._applyCard(ps, avail[Math.floor(this.rngDraft() * avail.length)]);
+        // the card the player had selected (g.choiceFocus: a first tap without the confirming second one) while it is
+        // still free, else a random one (players' report: 月鸦 selected 杰斯顿, the turn ran out, he got W)
+        const focus = s.focus?.get(ps.playerId);
+        this._applyCard(ps, avail.includes(focus) ? focus : avail[Math.floor(this.rngDraft() * avail.length)]);
       });
       s.turnDeadline = this.deadline;
     } else {
@@ -73,6 +76,20 @@ export class MatchSpDraft {
       if (!avail.length) return;
       this._applyCard(ps, botPickCard(this, ps, this.sp.cards, avail));
     });
+  }
+
+  /**
+   * g.choiceFocus { idx? }: the card the player has selected in the 机变 overlay (its first tap; the second one sends
+   * g.choice). Only a timed-out turn reads it. A missing / null idx clears it.
+   */
+  choiceFocus(ps, idx) {
+    if (this.phase !== PHASE.SP_DRAFT || !this.sp) return fail(ERR.WRONG_PHASE);
+    if (this.sp.picks[ps.playerId] != null) return fail(ERR.ALREADY);
+    if (!(this.sp.focus instanceof Map)) this.sp.focus = new Map();
+    if (idx == null) { this.sp.focus.delete(ps.playerId); return OK; }
+    if (!Number.isInteger(idx) || idx < 0 || idx >= this.sp.cards.length) return fail(ERR.BAD_TARGET);
+    this.sp.focus.set(ps.playerId, idx);
+    return OK;
   }
 
   pickCard(ps, idx) {
@@ -110,9 +127,12 @@ export class MatchSpDraft {
     if (!ps || !card || !this.gd.enemy(card.enemyKey)) return null;
     // a multi-round card lasts MULTI_ROUND_BOUNTY_BATTLES battles (choices.js; the user's call after playtest #6)
     const rounds = bountyBattles(card);
+    // SP_BOUNTY_COINS: the host's reward wins whichever way the bounty came (悬赏决策, 神秘顾客, 教鞭 …)
+    const officialCoin = Math.max(0, Math.trunc(Number(card.coin) || 0));
+    const coin = bountyCoinOf(this.gd, card.effectId ?? card.id ?? null, officialCoin);
     const b = {
       id: `bounty:${this.nextUid()}`,
-      card: { effectId: card.effectId ?? card.id ?? null, name: card.name ?? '悬赏', desc: card.desc ?? '', tier: card.tier ?? 1, coin: Math.max(0, Math.trunc(Number(card.coin) || 0)), payout: card.payout === 'perfect' ? 'perfect' : 'kill', rounds, multiRound: isMultiRoundBounty(card), enemyKey: card.enemyKey, count: Math.max(1, Math.min(20, Number.isInteger(card.count) ? card.count : 1)) }, // i18n-ignore: a data-less card's fallback name
+      card: { effectId: card.effectId ?? card.id ?? null, name: card.name ?? '悬赏', desc: withBountyCoin(card.desc ?? '', officialCoin, coin), tier: card.tier ?? 1, coin, payout: card.payout === 'perfect' ? 'perfect' : 'kill', rounds, multiRound: isMultiRoundBounty(card), enemyKey: card.enemyKey, count: Math.max(1, Math.min(20, Number.isInteger(card.count) ? card.count : 1)) }, // i18n-ignore: a data-less card's fallback name
       roundsLeft: rounds,
     };
     ps.bounties.push(b);

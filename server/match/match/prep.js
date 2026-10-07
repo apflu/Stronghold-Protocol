@@ -1,11 +1,12 @@
 // server/match/match/prep.js — Match methods: the PREP phase — its start (deferred item merges, onPrepStart), the AI
 // seats' sliced preps (scheduleBotPrep: economy + layout, rehearsal, Ready), Ready and the deadline, and its end
-// (onPrepEnd, PlayerState.endPrep, then COMBAT or the Final Assault / Hidden Core).
+// (onPrepEnd, PlayerState.endPrep, the 轮回之终末 reckoning, then COMBAT or the Final Assault / Hidden Core).
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
-import { PHASE } from '../../../shared/constants.js';
+import { PHASE, BOND_LAYER_CAP } from '../../../shared/constants.js';
+import { msg } from '../../../shared/i18n.js';
 import { botPrepBeginSteps, botPrepEndSteps } from '../bot.js';
-import { DELAYS } from './common.js';
+import { DELAYS, FLOW_TICKER_PRIORITY } from './common.js';
 
 export class MatchPrep {
   enterPrep() {
@@ -128,12 +129,35 @@ export class MatchPrep {
     for (const ps of alive) ps.endPrep();
     const r = this.round;
     if (r === this.gd.bossRound) {
-      this.hiddenLayerSum = alive.reduce((s, p) => s + p.activatedLayers(), 0);
+      if (this._boostReckoning()) return; // nobody left
+      this.hiddenLayerSum = this.alivePlayers().reduce((s, p) => s + p.activatedLayers(), 0);
       this.startFinalAssault(false);
     } else if (r === this.gd.hiddenRound) {
       this.startFinalAssault(true);
     } else {
       this.startCombat();
     }
+  }
+
+  /**
+   * SP_BOOST (轮回之终末, hostOptions.js): when the last prep ends, a seat that ticked the box with no bond at
+   * BOND_LAYER_CAP (999) is eliminated before the Final Assault (layers do not grow there). The boss pairs are planned
+   * again for the players left. Returns true when nobody is left (the match has ended).
+   */
+  _boostReckoning() {
+    const doomed = this.alivePlayers().filter((ps) => ps.boost && !Object.values(ps.layers || {}).some((v) => v >= BOND_LAYER_CAP));
+    if (!doomed.length) return false;
+    for (const ps of doomed) {
+      ps.lp = 0;
+      ps.eliminate(this.round);
+      this.toast(ps, 'error', '轮回之终末：没有盟约达到 999 层，心脏停止了跳动');
+      this.tickerText(msg('{name}博士的心跳停止了', { name: ps.name }), FLOW_TICKER_PRIORITY);
+      this.log.info(`[boost] ${ps.name} eliminated at the last prep (no bond at ${BOND_LAYER_CAP})`);
+    }
+    if (this.teamLp != null) this._syncTeamLp();
+    if (!this.alivePlayers().length) { this.markPublic(); this.finish({ victory: false, reason: 'eliminated' }); return true; }
+    if (this.bossWaves) { this._planBossWaves(); for (const p of this.alivePlayers()) p.recompute(); }
+    this.markPublic();
+    return false;
   }
 }

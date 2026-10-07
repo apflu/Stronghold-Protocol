@@ -119,8 +119,8 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
       if (res && res.ok && on) check('ready', () => { if (!ps.tempEmpty) fail(`${ps.playerId}: ready with a non-empty temp`); });
       return res;
     });
-    wrap(ps, '_rollChessSlot', function (orig) {
-      const s = orig();
+    wrap(ps, '_rollChessSlot', function (orig, i) {
+      const s = orig(i);
       if (s) {
         const t = gd.tierOf(s.id);
         const row = (audit.odds[ps.shop.level] ||= {});

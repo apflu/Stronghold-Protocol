@@ -108,6 +108,9 @@
 //   opts.verify        'off' | 'sample' | 'all' (env SP_VERIFY, default 'off'): re-simulate accepted client results
 //                      ('sample': ~1 in 8, in a later callback, mismatches logged; 'all': before accepting — the
 //                      server's result wins on a mismatch)
+//   opts.factionExclude / botAssist / botPreferBond / botHelpLast / botPreferBand / bountyCoins / bossHpMul /
+//   opts.bonusFunds / bonusFundsFor / boost   the host's own knobs (env SP_FACTION_EXCLUDE, SP_BOT_*, SP_BOUNTY_COINS,
+//                      SP_BOSS_HP_MUL*, SP_BONUS_FUNDS*, SP_BOOST), each off by default — see ./hostOptions.js
 //
 // Engine-only extra options (tests / tools; the lobby never passes them):
 //   opts.scheduler     RealScheduler (default, uses opts.now) | VirtualScheduler (./scheduler.js)
@@ -130,8 +133,9 @@
 //
 // Disconnect / leave policy (research 06 §10.3 + DESIGN §6.6):
 //   * disconnected human: the seat keeps playing its last lineup; draft turns and prep auto-resolve at their
-//     deadlines (band → 华法琳, 机变 → a random remaining card, prep → auto-ready with temp auto-resolved). Nothing is
-//     bought for them unless they toggled "AI 托管" (g.autoplay { on: true }), which lets the bot play the seat.
+//     deadlines (band → 华法琳, 机变 → the selected card while free (g.choiceFocus), else a random remaining one,
+//     prep → auto-ready with temp auto-resolved). Nothing is bought for them unless they toggled "AI 托管"
+//     (g.autoplay { on: true }), which lets the bot play the seat.
 //   * departed human (onLeave): 中途退出 counts as elimination (research 00-INDEX §3, 01 §9, 06 §7 / §10.3) — every
 //     copy the seat holds returns to the shared pool at once, the seat leaves the round loop, the Final Assault
 //     pairing and the boss pool; its own running normal battle is force-ended. The seat shows status 'left'. When no
@@ -174,6 +178,7 @@ import { SharedPool, drawDisabledBonds } from './pool.js';
 import { PlayerState } from './PlayerState.js';
 import { EffectDispatcher, getDefaultRegistry } from './effectsMeta.js';
 import { setupMatchWaves } from './waves.js';
+import { applyHostOptions } from './hostOptions.js';
 import { GAME_SPEED, HEADLESS_SLICE_MS } from './fields.js';
 import { MatchPlatform } from './match/platform.js';
 import { MatchInfra } from './match/infra.js';
@@ -194,6 +199,7 @@ import { MatchSettle } from './match/settle.js';
 import { instrumentMatch } from './eventlog.js';
 
 export { FLOW_TICKER_PRIORITY, DELAYS, BAND_TURN_SECONDS } from './match/common.js';
+export { BOT_ASSIST, BOT_ASSIST_DIFFICULTIES, BOOST_DEFAULT, parseBoost, parseFlag } from './hostOptions.js';
 
 const BOT_REHEARSAL_DEFAULT = 3;
 /** Wall-clock ms of bot layout rehearsal per scheduler callback (real time; virtual time runs it in one go). */
@@ -253,6 +259,8 @@ export class Match {
     /** client-side combat (DESIGN §14) — see the header */
     this.clientCombat = opts.clientCombat != null ? !!opts.clientCombat : envClientCombat();
     this.verifyMode = parseVerify(opts.verify ?? env('SP_VERIFY'));
+    // the host's own knobs (SP_BOT_*, SP_BOOST, SP_BOSS_HP_MUL* …; all off by default): before the seats and the setup
+    applyHostOptions(this, opts, env);
     /** wall-clock ms per slice of a server-run normal / 联防 field (virtual time: at once) */
     this.headlessSliceMs = Number.isFinite(opts.headlessSliceMs) && opts.headlessSliceMs > 0 ? opts.headlessSliceMs : this.sched.virtual ? Infinity : HEADLESS_SLICE_MS;
     this.verifyStats = { checked: 0, mismatches: 0, rejected: 0, takeovers: 0 };
