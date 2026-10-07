@@ -4,7 +4,7 @@
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
 import { PHASE, ERR } from '../../../shared/constants.js';
-import { generateDraft, applyCard, bountyBattles, isMultiRoundBounty } from '../choices.js';
+import { generateDraft, applyCard, bountyBattles, isMultiRoundBounty, bountyCoinOf, withBountyCoin } from '../choices.js';
 import { weightedPick } from '../waves.js';
 import { botPickCard } from '../bot.js';
 import { OK, fail, DELAYS } from './common.js';
@@ -127,9 +127,12 @@ export class MatchSpDraft {
     if (!ps || !card || !this.gd.enemy(card.enemyKey)) return null;
     // a multi-round card lasts MULTI_ROUND_BOUNTY_BATTLES battles (choices.js; the user's call after playtest #6)
     const rounds = bountyBattles(card);
+    // SP_BOUNTY_COINS: the host's reward wins whichever way the bounty came (悬赏决策, 神秘顾客, 教鞭 …)
+    const officialCoin = Math.max(0, Math.trunc(Number(card.coin) || 0));
+    const coin = bountyCoinOf(this.gd, card.effectId ?? card.id ?? null, officialCoin);
     const b = {
       id: `bounty:${this.nextUid()}`,
-      card: { effectId: card.effectId ?? card.id ?? null, name: card.name ?? '悬赏', desc: card.desc ?? '', tier: card.tier ?? 1, coin: Math.max(0, Math.trunc(Number(card.coin) || 0)), payout: card.payout === 'perfect' ? 'perfect' : 'kill', rounds, multiRound: isMultiRoundBounty(card), enemyKey: card.enemyKey, count: Math.max(1, Math.min(20, Number.isInteger(card.count) ? card.count : 1)) }, // i18n-ignore: a data-less card's fallback name
+      card: { effectId: card.effectId ?? card.id ?? null, name: card.name ?? '悬赏', desc: withBountyCoin(card.desc ?? '', officialCoin, coin), tier: card.tier ?? 1, coin, payout: card.payout === 'perfect' ? 'perfect' : 'kill', rounds, multiRound: isMultiRoundBounty(card), enemyKey: card.enemyKey, count: Math.max(1, Math.min(20, Number.isInteger(card.count) ? card.count : 1)) }, // i18n-ignore: a data-less card's fallback name
       roundsLeft: rounds,
     };
     ps.bounties.push(b);
