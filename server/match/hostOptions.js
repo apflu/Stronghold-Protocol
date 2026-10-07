@@ -101,5 +101,4 @@ export function applyHostOptions(m, opts, env) {
     : parseBoost(env('SP_BOOST'));
   // the box's own rng stream: every other stream draws the same with or without it
   m.rngBoost = createRng(deriveSeed(m.seed, 'boost'));
-  // TODO(eventlog): match.start carried botAssist, botPreferBond, bonusFunds, bossHpMul and seats[].boost
 }
