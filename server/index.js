@@ -12,6 +12,8 @@
 //   http/buildTag.js   the build tag of the served browser runtime (/healthz `build`, public/js/ui/buildGuard.js)
 //   http/routes.js     the request listener: security headers, 414 / 400 / 405, GET /healthz → JSON status, else static
 //   http/common.js     what every answer shares: security headers, URL split, error page, JSON replies, bare 400
+//   http/access.js     SP_ACCESS (off by default): invite links, the invite-only gate, guests in host mode
+//                      (the store: server/access.js, tools/access.mjs)
 //   http/boot.js       banner (Local / LAN / tunnel URLs), port-in-use hint, graceful shutdown on SIGINT / SIGTERM
 //
 // The host's event log (SP_LOG_DIR, off by default; server/match/eventlog.js, tools/logs.mjs) is opened here.
@@ -33,6 +35,7 @@ import { BUILD_INPUTS, computeBuildTag, buildTag, resetBuildTag } from './http/b
 import { createRequestHandler } from './http/routes.js';
 import { answerClientError } from './http/common.js';
 import { lanUrls, isProcessEntry, runMain } from './http/boot.js';
+import { createAccess } from './http/access.js';
 import { eventLog } from './match/eventlog.js';
 import { APP_VERSION } from '../shared/constants.js';
 
@@ -52,7 +55,8 @@ export {
  *   ratePerSec?: number, rateBurst?: number, maxConnections?: number, maxRooms?: number,
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
- *   logDir?: string,
+ *   logDir?: string, access?: 'open' | 'watch' | 'host' | 'invite', accessFile?: string, accessTitle?: string,
+ *   accessMessage?: string,
  * }} [opts]
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: import('ws').WebSocketServer,
  *                     lobby: import('./lobby.js').Lobby, network: import('./net.js').Network,
@@ -72,7 +76,9 @@ export async function startServer(opts = {}) {
     if (eventLog.open(logDir)) { log.info(`[log] event log → ${logDir}`); eventLog.write({ type: 'server.start', app: APP_VERSION, pid: process.pid }); }
     else log.warn(`[log] SP_LOG_DIR ${logDir} is not writable — event log off`);
   }
-  const { registry, lobby, network } = createSessionStack(opts, { data, log });
+  // invite-only access (http/access.js; docs/DEPLOY.md「准入」): null when SP_ACCESS is open
+  const access = createAccess(opts, { log });
+  const { registry, lobby, network } = createSessionStack(opts, { data, log, access });
   // content packs (docs/PACKS.md): scanned now — the start log names them — and again whenever their folders change
   const packs = createPackRegistry({ publicDir, dataDir, packsDir }, { log });
   packs.refresh(true);
@@ -82,9 +88,9 @@ export async function startServer(opts = {}) {
   resetBuildTag();
   buildTag();
 
-  const server = http.createServer(createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby }, log }));
+  const server = http.createServer(createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby }, log, access }));
   server.on('clientError', answerClientError);
-  const wss = attachWebSocket(server, { network, log });
+  const wss = attachWebSocket(server, { network, log, access });
 
   try {
     await new Promise((resolve, reject) => {

@@ -36,6 +36,11 @@
 //                                          straight to the running match through it; without it they reach onMessage
 //   onDisconnect(session)                  the session's socket closed (session kept for the reconnect window)
 //   onExpire(session)                      the session was purged (disconnected longer than the window)
+//
+// Invite-only access (server/access.js, server/http/access.js): the upgrade request carries `spAccess` (the invite +
+// device of its cookie) → `conn.access` → `session.access` (null: a guest). Network options of it: `nameFor(access,
+// name, { repeat })` → the nickname every device of one invite plays under; `memberFlag` (SP_ACCESS=host) → welcome
+// `member` (may this player create rooms) and, for a guest, `note` = `guestNote` (the host's words).
 
 import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
@@ -553,6 +558,8 @@ export class Network {
   handleConnection(ws, req) {
     if (this.closed) { try { ws.close(CLOSE.SHUTDOWN, 'server shutdown'); } catch { /* ignore */ } return; }
     const conn = new Connection(ws, clientAddress(req, this.opts.trustProxy), this.now(), this.opts);
+    /** the invite this socket was admitted under (server/access.js; set by server/http/access.js on the upgrade request) */
+    conn.access = req && req.spAccess ? req.spAccess : null;
     this.conns.set(ws, conn);
     if (conn.key) this.connsPerKey.set(conn.key, (this.connsPerKey.get(conn.key) || 0) + 1);
     ws.on('message', (data, isBinary) => {
@@ -635,12 +642,16 @@ export class Network {
       this.reply(conn, errorMsg(ERR.BAD_MSG, rid, `version mismatch: server ${PROTOCOL_VERSION}`));
       return;
     }
-    const name = sanitizeName(msg.name);
+    let name = sanitizeName(msg.name);
     if (!name) { this.reply(conn, errorMsg(ERR.BAD_MSG, rid, 'bad field name')); return; }
 
     let session = conn.session;
     let resumed = false;
     const repeat = !!session;
+    // invite-only access: every device of one invite plays under one nickname (server/http/access.js nameFor)
+    if (conn.access && typeof this.opts.nameFor === 'function') {
+      try { name = sanitizeName(this.opts.nameFor(conn.access, name, { repeat })) || name; } catch (e) { this.log.error('[net] nameFor crashed', e); }
+    }
     if (!session) {
       session = msg.token ? this.registry.byToken(msg.token) : null;
       if (session) {
@@ -656,6 +667,8 @@ export class Network {
       session.disconnectedAt = null;
     }
     session.name = name;
+    /** the invite of the socket this session is on now (server/access.js), or null: a guest (SP_ACCESS=host) */
+    session.access = conn.access || null;
     session.lastSeen = now;
     session.addr = conn.ip;
     session.limitKey = conn.key;
@@ -663,6 +676,8 @@ export class Network {
     let extra = null;
     try { extra = this.handler.welcomeInfo?.() ?? null; } catch (e) { this.log.error('[net] welcomeInfo crashed', e); }
     const welcome = { ...(extra && typeof extra === 'object' ? extra : null), t: 'welcome', playerId: session.playerId, token: session.token, name: session.name, serverNow: now, version: PROTOCOL_VERSION, resumed };
+    if (this.opts.memberFlag) welcome.member = !!session.access; // SP_ACCESS=host: may this player create rooms
+    if (this.opts.memberFlag && !session.access && typeof this.opts.guestNote === 'string') welcome.note = this.opts.guestNote.slice(0, 200); // the host's words
     if (validRid(rid)) welcome.rid = rid;
     this.reply(conn, welcome);
     try {
