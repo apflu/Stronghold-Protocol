@@ -50,7 +50,7 @@
 //                      “倒地干员”…自动部署至该位置"; its own home when it fell on another board piece's home);
 //                      L ≥ power_bond_stack_cnt: every operator ASPD +power_attack_speed
 //   不屈 indomShip     ground operator knocked out → p = min(1, base + per·L) immediate free redeploy where it lies
-//                      (the engine's rest tile); tier 2: every operator on the field +sp SP
+//                      (the engine's rest tile); tier 2: every operator on the field +sp SP (a knock-out or a 突袭 jump)
 //   协防 emptyShip     all operators phys/arts taken ×(1 − damage_resistance); members dealt ×damage_scale_normal
 //                      (elite ×damage_scale_extra)
 //   独行 soloShip      the member(s) ATK +atk, HP +max_hp, +sp SP on every deploy
@@ -313,8 +313,10 @@ function raidTile(battle, u, e, reach) {
 /**
  * Jump candidates of player `pid`, in priority order: the ground enemies an operator may target (not flying,
  * canTargetEnemy) — those of the player's own field (`ownerId`), the others only when it has none —, the most advanced
- * first (least remaining path distance, then the earliest spawned) [ASSUMED, research 02 §3.18]. The same list for
- * every member of the player (canTargetEnemy reads the enemy, not the attacker).
+ * first (least remaining path distance, then the earliest spawned) [ASSUMED, research 02 §3.18]; after them the player's
+ * own ally targets (Battle.setAllyTarget: 白铁's 铁钳号·原型机, an enemy-camp summon our operators attack — players' report:
+ * 突袭 takes it as a target, and the official trick alternates between two of them, every jump a new deployment). The
+ * same list for every member of the player (canTargetEnemy reads the enemy, not the attacker).
  */
 function raidTargets(battle, u, pid) {
   const own = [], other = [];
@@ -325,7 +327,18 @@ function raidTargets(battle, u, pid) {
   const list = own.length ? own : other;
   const dist = new Map(list.map((e) => [e, num(battle.remainingDistance ? battle.remainingDistance(e) : 0)]));
   list.sort((a, b) => dist.get(a) - dist.get(b) || a.id - b.id);
+  if (battle._allyTargets && battle._allyTargets.size) {
+    for (const a of battle._allyTargets) if (a.alive && a.deployed && !a.hidden && a.ownerId === pid) list.push(a);
+  }
   return list;
+}
+
+/**
+ * When the member last attacked an enemy: its last attack (lastAttackAt), unless that one only hit ally targets (a
+ * 铁钳号 — attacking it is no fight: the idle timer runs on), then its last attack on an enemy (the `attack` hook in install).
+ */
+function raidLastFight(u) {
+  return u.lastAttackAt === u.mem[KEY.raid + ':ally'] ? (u.mem[KEY.raid + ':atk'] ?? -Infinity) : (u.lastAttackAt ?? -Infinity);
 }
 
 function raidPoll(battle, st) {
@@ -334,7 +347,7 @@ function raidPoll(battle, st) {
   let targets = null; // the player's candidates (raidTargets), shared by its members until a jump changes the field
   for (const u of st.members[ID.raid]) {
     if (!onField(u) || !u.canAct) continue;
-    const since = Math.max(u.lastAttackAt ?? -Infinity, u.deployedAt ?? -Infinity, u.mem[KEY.raid] ?? -Infinity);
+    const since = Math.max(raidLastFight(u), u.deployedAt ?? -Infinity, u.mem[KEY.raid] ?? -Infinity);
     // 技能就绪: a charged skill, or a passive skill that is on (GitHub #49: skills.js `ready` is false for every passive,
     // so 缄默德克萨斯 / 宴 … only ever jumped on the idle trigger; the reporter's footage of the official game shows
     // 缄默德克萨斯 jumping within her passive's 10 s with no enemy in range). The engine keeps a passive on for the whole
@@ -349,7 +362,13 @@ function raidPoll(battle, st) {
     const idleOk = battle.time - since >= idle - 1e-9;
     if (!(ready || idleOk)) continue;
     if (battle.enemiesInKeys(u.rangeKeys || [], u, u.profile).length) continue;
-    const list = (targets ??= raidTargets(battle, u, st.pid));
+    const all = (targets ??= raidTargets(battle, u, st.pid));
+    // an ally target (铁钳号) is a stand-in: beside one a member leaves for a real enemy it can reach, else for ANOTHER
+    // one — never the one in its range (players' report: 瑕光 kept hitting one all battle long). Either trigger counts for
+    // it too: with a ready skill the member hops on at once — the official behaviour players reproduce for an endless
+    // stacking trick (owner's decision 2026-10-05)
+    const near = battle._allyTargets && battle._allyTargets.size ? battle.allyTargetsInKeys(u.rangeKeys || [], u) : null;
+    const list = near && near.length ? all.filter((e) => !near.includes(e)) : all;
     if (!list.length) continue;
     // either trigger: raidTile only offers tiles with the target in range (without that a ready skill that finds no
     // target would redeploy — firing every 部署时 effect — at every poll; the idle trigger, which lacked it up to
@@ -429,6 +448,17 @@ export function install(battle) {
     const raid = states.filter((st) => st.tiers[ID.raid] && st.members[ID.raid].size);
     if (raid.length) {
       battle.every(RAID_POLL, () => { for (const st of raid) raidPoll(battle, st); });
+      // the idle timer counts attacks on enemies only (raidLastFight): an attack on an ally target (a 铁钳号) is no fight
+      battle.on('attack', (c) => {
+        const u = c.attacker;
+        if (!u || u.side !== 'ally' || !u.mem) return;
+        const ts = c.targets || [];
+        if (ts.some((t) => t && t.side === 'enemy')) u.mem[KEY.raid + ':atk'] = battle.time;
+        else if (ts.length && ts.every((t) => battle.isAllyTarget(t))) u.mem[KEY.raid + ':ally'] = battle.time;
+      });
+      // a member's ready skill is no cast on an ally target (skills.js onAboutToAttack): with no enemy in range it hops
+      // instead, keeping its SP — the alternation trick (raidPoll)
+      for (const st of raid) for (const u of st.members[ID.raid]) u.mem.noAllyTargetCast = true;
     }
   }
 
@@ -474,7 +504,9 @@ export function install(battle) {
   // `dollSwap`, to the 替身 and back) rolls too; she stays on the field, so a hit only zeroes her NEXT deployment: the
   // next time she leaves the field (knocked out, withdrawn) she is back at once and free (`u.mem.indomFreeDeploy`)
   // [ASSUMED: one such deployment at a time, spent by her next deployment whatever brings it]. Tier 2 (+sp SP to every
-  // operator on the field) stays a knock-out effect: its own line ("地面干员被击倒时使场上所有干员技力+5") was not corrected.
+  // operator on the field): a knock-out, and the 突袭 jump's retreat — its line ("地面干员被击倒时使场上所有干员技力+5") was not
+  // corrected on PRTS, but a player's video of the official mode shows a 突袭 jump giving it (players' report, owner's
+  // decision 2026-10-05); the jumper itself is off the field at that instant and lands with its own SP (keepSp).
   // Both lines take a 地面干员 = a melee-position operator on any tile (support isGroundOp: 歌蕾蒂娅 on a 高台 counts, a
   // ranged operator on a melee tile does not — community report 「不屈盟约效果高台干员也错误的吃到了」, 0.1.3).
   if (has(ID.indom)) {
@@ -483,13 +515,15 @@ export function install(battle) {
     battle.on('death', (c) => {
       const u = c.unit;
       const banked = !!(u && u.mem && u.mem.indomFreeDeploy);
-      if (!INDOM_EXITS.has(c.reason) || !(stOf(u) || (banked && u.kind === 'op'))) return;
+      const raid = c.reason === 'raid';
+      if (!(INDOM_EXITS.has(c.reason) || raid) || !(stOf(u) || (banked && u.kind === 'op'))) return;
       const st = stOf(u);
       const bb = st ? st.bb[ID.indom] : null;
-      if (st && c.reason === 'killed' && st.tiers[ID.indom] >= 2) {
+      if (st && (c.reason === 'killed' || raid) && st.tiers[ID.indom] >= 2) {
         const sp = num(bb.sp);
         if (sp > 0) for (const o of st.ops) if (onField(o) && o.skill) o.skill.gainSp(sp, 'bond');
       }
+      if (raid) return; // the jump redeploys it anyway: no 重新部署 roll
       if (u.alive || u.removed || u.mem[ID.indom] === battle.time) return;
       if (banked || (st && battle.rng() < prob(bb, L(battle, st, ID.indom)))) {
         u.mem[ID.indom] = battle.time;

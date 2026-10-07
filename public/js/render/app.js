@@ -36,7 +36,8 @@
 //        pieceClick { uid, piece, button, detail, clientX, clientY } (battle units: { unitId, uid, unit, … })
 //        pieceDetail (right-click / long-press) · pieceHover { uid } | { uid: null } (battle: + unitId, unit)
 //        tileClick { row, col, x, y } — the ground itself was tapped and nothing stands there (GitHub issue #184:
-//        a special terrain tile's own tip; the screen resolves it with gameLogic.terrainInfo)
+//        a special terrain tile's own tip or a map device's card; the screen resolves it with gameLogic.tileTapTarget);
+//        row / col null off the board (a press on nothing: the screen clears its cards)
 //        tileHover { row, col, area, idx } | null (while dragging: the drop target — the tile under the pointer)
 //   view.pieceScreenRect(uid) → { left, top, right, bottom, width, height, x, y } (client px: the drawn body) | null
 // Picking (user playtest #4 item 1: the ground is drawn as tiles — a press on a tile is a press on the unit standing
@@ -318,6 +319,20 @@ export async function createFieldView(host, options = {}) {
       const R = camRect();
       const p = cam.project((R.c0 + R.c1) / 2, R.r1 + 0.5, 1.6);
       return Math.max(80, Math.min(size().height * 0.4, p.y));
+    },
+    // the right end of the match's bond strip (DOM, ui/bondStrip.js: its last disc or the "+N" badge) in canvas px: bond
+    // layer pops line up right of it instead of the top centre, where a long strip covered them; null when no strip is
+    // shown (none yet, or collapsed — GitHub #142: the hidden list has no box) — the pops keep the top centre
+    popAnchor: () => {
+      try {
+        const strip = document.querySelector('.gm__bonds .bstrip:not(.bstrip--empty)');
+        const last = strip && strip.lastElementChild;
+        if (!last) return null;
+        const r = last.getBoundingClientRect();
+        if (!(r.width > 0 && r.height > 0)) return null;
+        const cr = canvas.getBoundingClientRect();
+        return { x: r.right - cr.left, y: r.top + r.height * 0.4 - cr.top };
+      } catch { return null; }
     },
   });
   ctx.fx = fx;
@@ -1138,8 +1153,9 @@ export async function createFieldView(host, options = {}) {
 
   /**
    * The ground itself was tapped: nothing stands there, so the TILE explains itself — a special terrain tile (活性源石,
-   * 沼泽, 排气格栅, 深水区, 红/蓝门, 传送) opens its own card (GitHub issue #184; screens/game.js `tileClick` →
-   * gameLogic.terrainInfo, which says nothing about an ordinary floor / road / wall tile).
+   * 沼泽, 排气格栅, 深水区, 红/蓝门, 传送) or a map device (射击台, 阻隔工事 …) opens its own card (GitHub issue #184;
+   * screens/game.js `tileClick` → gameLogic.tileTapTarget); an ordinary floor / road / wall tile says nothing, and a press
+   * there closes the open card.
    * The tile is picked as a BOARD tile (`pickBoardTile`, i.e. through `prepXf.toBoard`): on a Final Assault / Hidden Core
    * PREP the board draws the boss field's own rows (stage 2–5 as board 9–12), and the screen maps board → stage once more
    * with `gameLogic.fieldTile` — reporting the DRAWN tile here would be converted twice and explain the wrong tile
@@ -1147,8 +1163,9 @@ export async function createFieldView(host, options = {}) {
    */
   function emitTileClick(ev, e) {
     const t = pickBoardTile(ev.x, ev.y);
-    if (!t || !(t.row >= 0) || !(t.col >= 0)) return;    // outside the board this field draws
-    emit('tileClick', { row: t.row, col: t.col, button: e.button, clientX: e.clientX, clientY: e.clientY });
+    // outside the board this field draws too (row / col null): a press on nothing clears the open card (screens/game.js)
+    const on = !!t && t.row >= 0 && t.col >= 0;
+    emit('tileClick', { row: on ? t.row : null, col: on ? t.col : null, button: e.button, clientX: e.clientX, clientY: e.clientY });
   }
 
   const onPointerDown = (e) => {
@@ -1438,7 +1455,7 @@ export async function createFieldView(host, options = {}) {
         const url = assets.bondIcon ? assets.bondIcon(bondId) : null;
         let tex = null;
         if (url) { try { tex = P.Texture.from(url); } catch { tex = null; } }
-        fx.pop(tex, `+${n}`, 0xffffff, layerPops.size);
+        fx.pop(tex, `+${n}`, 0xffffff, layerPops.size, { strip: true });
         break;
       }
       case 'bounty': {

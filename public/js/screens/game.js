@@ -96,7 +96,7 @@ import {
   phaseMode, phaseBanner, isCombatPhase, showDeadPill, isBossPhase, placementContext, canPlace, boardTargets, dropIntent,
   battleOverSfx, uniteResultBox, battleResultBox,
   snapHud, activeBubbles, shortcutFor, shortcutBlocked, closesOnFieldPress, phaseTotalSeconds, homeFieldId, ownFieldId, normalizeSp, sortedPlayers,
-  terrainInfo,
+  tileTapTarget,
   countdownState, shopBlockReason, stageOverrides, effectiveStage, watchTarget, dropFailureReason,
   previewEnemyKey, prepCamera, prepCameraFor, foldCamera, deployFieldOf, fieldTile, panelSide, panelSlots, bondPopupPlace, unitLoadout, deployedRecord,
   mergeTarget, modeOffBonds, readyFundsPrompt, ownerBandId, ownDiyRecord, ownStandIn,
@@ -930,17 +930,24 @@ function MatchScreen() {
         if (wasSel) setDetail((d) => (d?.kind === 'piece' && d.uid === e.uid ? null : d));
       }),
       // a tap on the ground itself: a special terrain tile explains itself (GitHub issue #184 「建议加入对于特殊地形的单击
-      // 信息提示」) — 活性源石 / 沼泽 / 排气格栅 / 深水区 / 红蓝门 / 传送, with the numbers of the stage behind the board.
-      // An ordinary tile (road / floor / wall) says nothing, so the press keeps its other meanings (deselect, close).
+      // 信息提示」) — 活性源石 / 沼泽 / 排气格栅 / 深水区 / 红蓝门 / 传送, with the numbers of the stage behind the board; a map
+      // device the tip has no lines for (射击台, 阻隔工事, 土石结构, 源石流 …) shows its own card after it (gameLogic
+      // tileTapTarget). Plain ground — or outside the board (row / col null) — closes whatever card is open and the
+      // selection: the press on the field already closed the cards opened from it (closesOnFieldPress); shop / reward /
+      // intel cards go too, players expect a tap on nothing to clear (not while the facing wheel is up).
       view.on('tileClick', (t) => {
-        if (!t || !Number.isInteger(t.row) || !Number.isInteger(t.col)) return;
+        if (!t) return;
         const L = live.current;
-        const [row, col] = L.terrainTile(t.row, t.col);
-        const info = terrainInfo(L.terrainStage, row, col);
-        if (!info) return;
-        audio.sfx('click', { volume: 0.4 });
+        const target = Number.isInteger(t.row) && Number.isInteger(t.col) ? tileTapTarget(L.terrainStage, ...L.terrainTile(t.row, t.col)) : null;
+        if (target) {
+          audio.sfx('click', { volume: 0.4 });
+          setSel(null);
+          setDetail(target);
+          return;
+        }
+        if (L.facing) return;
+        setDetail(null);
         setSel(null);
-        setDetail({ kind: 'terrain', terrain: info });
       }),
     ];
     return () => { moveOff?.(); for (const off of offs) { try { off?.(); } catch { /* ignore */ } } };

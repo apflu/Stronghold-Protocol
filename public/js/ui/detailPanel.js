@@ -619,7 +619,8 @@ export function TokenDetail({ token, piece, ownerId = null, snapHp = null, live 
  * A special terrain tile's tip (GitHub issue #184: 「建议加入对于特殊地形的单击信息提示」). Opened by a tap on the tile
  * itself — the game screen resolves it with `gameLogic.terrainInfo` from the stage the board on screen is built from, so
  * the mechanism lines carry that stage's own numbers (活性源石's damage / duration, 沼泽's stacks, 深水区's drowning …).
- * @param {{ name:string, tag:string, lines:string[], facts:string[], row:number, col:number }} terrain
+ * A map device the tip has no lines for (射击台, 阻隔工事 …: `gameLogic.deviceInfo`, `device: true`) opens the same card.
+ * @param {{ name:string, tag:string, lines:string[], facts:string[], row:number, col:number, device?:boolean }} terrain
  */
 function TerrainDetail({ terrain }) {
   return html`
@@ -630,7 +631,7 @@ function TerrainDetail({ terrain }) {
         <h3 class="dhead__name">${terrain.name}</h3>
       </div>
     </div>
-    <${Section} title=${t('地形机制')} micro="TERRAIN">
+    <${Section} title=${terrain.device ? t('装置说明') : t('地形机制')} micro=${terrain.device ? 'DEVICE' : 'TERRAIN'}>
       ${terrain.lines.map((line, i) => html`<p class="dtext" key=${i}>${line}</p>`)}
     <//>
     ${Array.isArray(terrain.facts) && terrain.facts.length ? html`<${Section} title=${t('这一格')}><p class="dtext">${terrain.facts.join(' · ')}</p><//>` : null}`;

@@ -34,7 +34,9 @@
 
 /* ---- briefing layout ---- */
 .brief__main { position: relative; z-index: 1; flex: 1; min-height: 0; display: grid; grid-template-columns: 6.2rem 1fr; gap: .36rem; padding: .3rem .5rem .1rem; }
-.brief__left { display: flex; flex-direction: column; gap: .2rem; min-height: 0; }
+.brief__left { display: flex; flex-direction: column; gap: .2rem; min-height: 0; overflow: auto; padding-right: .06rem; }
+/* the left column scrolls when the stage's 地图特性 make it taller (its blocks keep their height) */
+.brief__left > * { flex: none; }
 .brief__right { display: flex; flex-direction: column; gap: .2rem; min-height: 0; overflow: auto; padding-right: .06rem; }
 
 .brief-boss {
@@ -65,6 +67,13 @@
 .brief-stage__name .icon { width: .2rem; height: .2rem; color: var(--mint-500); }
 
 .brief-factions { display: flex; flex-direction: column; gap: .1rem; min-height: 0; }
+/* 地图特性 (gameLogic stageFeatures): the stage's special terrain and map devices */
+.brief-features { display: flex; flex-direction: column; gap: .08rem; }
+.brief-features .brief-h { margin-bottom: .02rem; }
+.brief-feature { padding: .1rem .16rem; background: rgba(12, 15, 14, .8); border: 1px solid var(--line); border-left: 3px solid var(--mint-500); }
+.brief-feature b { display: block; font-size: .17rem; font-weight: 800; color: var(--text-hi); }
+.brief-feature span { display: block; font-size: .14rem; line-height: 1.45; color: var(--text-lo); }
+.brief-features__tip { font-size: .12rem; margin: 0; }
 .brief-faction { display: flex; gap: .14rem; align-items: center; padding: .12rem .16rem; background: rgba(12, 15, 14, .8); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
 .brief-faction__icon { width: .72rem; height: .72rem; flex: none; display: grid; place-items: center; background: radial-gradient(circle, rgba(246, 163, 41, .16), transparent 70%); }
 .brief-faction__icon img { width: 100%; height: 100%; object-fit: contain; }

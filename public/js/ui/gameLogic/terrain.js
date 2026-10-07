@@ -123,3 +123,130 @@ export function terrainInfo(stage, row, col) {
   else if (tile.groundPassable === true) facts.push(t('地面单位可通过'));
   return { key, name: t(tip.name), tag: t(tip.tag), row, col, lines: tip.lines(stage.special).filter((s) => typeof s === 'string' && s), facts };
 }
+
+// ---- map devices: the card of a tapped device tile the terrain tip has no lines for, and the briefing's 地图特性 ----
+
+/**
+ * What a stage device does, per `role` (data/stages.json `devices[]`), worded after the sim (server/sim/content/devices.js,
+ * server/sim/battle/summons.js _spawnStageDevices) and the match's deploy map (server/match/board.js): a 射击台 / 土石结构 is
+ * a hard block (土石结构 deploys nobody, a 射击台 ranged operators only, raised — they block nobody), a 阻隔工事 an
+ * obstacle-like crate enemies route around and break, the 源石流 of act2 m01 (its numbers: the device's own skill
+ * blackboard, else `stage.special.blower`), the “双眼皮” turrets that a strategy / map card switches on. The name is the
+ * device's own (a data text, localized with the stage); `name` here only when the record has none.
+ */
+const DEVICE_TIPS = Object.freeze({
+  blower: {
+    name: N_('源石流发生装置'),
+    lines: (dev, st) => {
+      const own = isObj(dev?.skill?.bb) ? dev.skill.bb : null;
+      const b = own || (isObj(st?.special?.blower?.bb) ? st.special.blower.bb : {});
+      const eq = param(b['blower_s_character[equal].atk'], 0), op = param(b['blower_s_character[opposite].atk'], 0);
+      const ve = param(b['blower_s_character[vertical].atk'], 0);
+      const en = param(b['blower_s_enemy[equal].move_speed'], 0), eo = param(b['blower_s_enemy[opposite].move_speed'], 0);
+      return [
+        ve
+          ? t('站在源石流中的干员：朝向与风向相同时攻击力 {eq}，相反时 {op}，垂直时 {ve}', { eq: pctText(eq), op: pctText(op), ve: pctText(ve) })
+          : t('站在源石流中的干员：朝向与风向相同时攻击力 {eq}，相反时 {op}，垂直时不变', { eq: pctText(eq), op: pctText(op) }),
+        t('部署时用方向轮盘选择朝向'),
+        en || eo ? t('敌人顺风移动速度 {en}，逆风 {eo}', { en: pctText(en), eo: pctText(eo) }) : null,
+      ].filter(Boolean);
+    },
+  },
+  crate: {
+    name: N_('阻隔工事'),
+    lines: (dev) => [
+      t('路上的障碍物：敌人会尽量绕开它'),
+      t('被它挡住的敌人会攻击并摧毁它（{hp} 生命值）', { hp: param(dev?.stats?.maxHp, 100) }),
+    ],
+  },
+  platform: {
+    name: N_('射击台'),
+    lines: () => [t('地面单位无法通过'), t('只能部署远程位干员；站在上面的干员不阻挡敌人')],
+  },
+  mound: {
+    name: N_('土石结构'),
+    lines: () => [t('地面单位无法通过'), t('不可部署')],
+  },
+  turret: {
+    name: N_('“双眼皮”'),
+    lines: () => [
+      t('自动用法术攻击射程内的敌人，命中附带脆弱'),
+      t('攻击速度和脆弱随你最高的盟约层数提升'),
+      t('默认不出现，由策略或机变卡开启'),
+    ],
+  },
+});
+
+/** A device present at match start (the sim's rule, battle/summons.js _spawnStageDevices: `raw.active`, else not `hidden`). */
+const deviceOn = (d) => (isObj(d?.raw) && typeof d.raw.active === 'boolean' ? d.raw.active : !d?.hidden && d?.active !== false);
+const devicesOf = (stage) => (Array.isArray(stage?.devices) ? stage.devices.filter((d) => isObj(d) && DEVICE_TIPS[d.role]) : []);
+const samePos = (p, row, col) => Array.isArray(p) && p[0] === row && p[1] === col;
+const tipLines = (lines) => lines.filter((s) => typeof s === 'string' && s);
+/** Tips that are no map feature: the gates and teleports every stage has. */
+const NOT_FEATURES = new Set(['start', 'end', 'telin', 'telout']);
+
+/**
+ * The card of the map device on board tile (row, col) — a device the terrain tip (terrainInfo) has no lines for: 射击台,
+ * 阻隔工事, 土石结构, 源石流发生装置 (also a tile its airflow covers), “双眼皮” — in terrainInfo's shape, so the panel shows it
+ * as the same terrain card. null when no device that is on stands there (a device that starts off is not on the board).
+ * @param {{ devices?: any[], special?: any } | null | undefined} stage the shown field's stage
+ * @param {number} row
+ * @param {number} col
+ * @returns {{ key:string, name:string, tag:string, row:number, col:number, lines:string[], facts:string[], device:true } | null}
+ */
+export function deviceInfo(stage, row, col) {
+  if (!Number.isInteger(row) || !Number.isInteger(col)) return null;
+  const on = devicesOf(stage).filter(deviceOn);
+  let dev = on.find((d) => samePos(d.pos, row, col));
+  let flow = false;
+  if (!dev) {
+    dev = on.find((d) => d.role === 'blower' && Array.isArray(d.rangeTiles) && d.rangeTiles.some((p) => samePos(p, row, col)));
+    flow = !!dev;
+  }
+  if (!dev) return null;
+  const tip = DEVICE_TIPS[dev.role];
+  return { key: `device:${dev.role}`, name: dev.name || t(tip.name), tag: flow ? t('源石流范围') : t('地图装置'), row, col, lines: tipLines(tip.lines(dev, stage)), facts: [], device: true };
+}
+
+/**
+ * What a tap on board tile (row, col) of the shown stage opens: the special terrain tip first (terrainInfo, GitHub #184),
+ * else the card of a map device standing there (deviceInfo) — `{ kind: 'terrain', terrain }` for the detail panel — or
+ * null for plain ground, where the tap closes whatever card is open and the selection (screens/game.js 'tileClick').
+ */
+export function tileTapTarget(stage, row, col) {
+  const info = terrainInfo(stage, row, col) || deviceInfo(stage, row, col);
+  return info ? { kind: 'terrain', terrain: info } : null;
+}
+
+/**
+ * The briefing's 地图特性: every special terrain type of the stage (its terrain tip's lines, in reading order; gates and
+ * teleports are no feature) and every device role that has a card (deviceInfo), once each. `optional`: a device role none
+ * of whose devices is on at match start (the “双眼皮”, 战场#02's crates / 射击台 — only a strategy or map card brings them;
+ * the briefing leaves them out).
+ * @returns {{ key:string, kind:'terrain'|'device', name:string, lines:string[], optional:boolean }[]}
+ */
+export function stageFeatures(stage) {
+  const out = [];
+  const rows = Array.isArray(stage?.rows) ? stage.rows : [];
+  const tiles = isObj(stage?.tiles) ? stage.tiles : {};
+  const seen = new Set();
+  for (const line of rows) {
+    if (typeof line !== 'string') continue;
+    for (const ch of line) {
+      const tile = tiles[ch];
+      const key = isObj(tile) ? tile.special : null;
+      if (!key || seen.has(key) || !TERRAIN_TIPS[key] || NOT_FEATURES.has(key)) continue;
+      seen.add(key);
+      const tip = TERRAIN_TIPS[key];
+      out.push({ key, kind: 'terrain', name: t(tip.name), lines: tipLines(tip.lines(stage.special)), optional: false });
+    }
+  }
+  for (const dev of devicesOf(stage)) {
+    const key = `device:${dev.role}`;
+    const prev = out.find((f) => f.key === key);
+    if (prev) { if (deviceOn(dev)) prev.optional = false; continue; }
+    const tip = DEVICE_TIPS[dev.role];
+    out.push({ key, kind: 'device', name: dev.name || t(tip.name), lines: tipLines(tip.lines(dev, stage)), optional: !deviceOn(dev) });
+  }
+  return out;
+}
