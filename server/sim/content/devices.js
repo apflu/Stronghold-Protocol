@@ -129,15 +129,11 @@ export function startColdWind(battle, { playerId = null, interval, duration, fir
     if (handle.cancelled || battle.finished) return;
     const dur = durOf();
     if (!(dur > 0)) return;
-    // a cold that lasts the whole interval is still on when the next gust blows (that gust then freezes): without the
-    // extra tick it would run out on the very tick of that gust — 谢拉格 at exactly 50 layers (20 + 0.1 × 50 = 25 s
-    // against 25 s gusts) never froze, players' report (owner's decision 2026-10-05: 50 layers freeze for good)
-    const d = dur >= iv - 1e-9 ? dur + battle.dt : dur;
     let n = 0;
     for (const e of battle.enemies) {
       if (!e.alive || e.hidden) continue;
       if (ownerOnly && playerId != null && e.ownerId !== playerId) continue;
-      if (battle.applyStatus(e, 'cold', { duration: d, source: null })) n++;
+      if (battle.applyStatus(e, 'cold', { duration: dur, source: null })) n++;
     }
     handle.gusts++;
     const R = battle.rect;

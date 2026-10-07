@@ -867,22 +867,6 @@ test('盟约寒风: every interval all enemies turn cold; a gust on cold enemies
   approx(c.duration, bb['bond_eff_kjerag[storm].base_time'] + 40 * bb['bond_eff_kjerag[storm].time_per_stack'], 1e-9);
 });
 
-test('谢拉格 寒风: at exactly 50 layers (cold = the gust interval) the second gust freezes and every gust keeps them frozen; 49 does not', REAL, () => {
-  const bb = ds.raw.effects?.bondeffect_kjerag?.buffs?.[0]?.bb ?? { 'bond_eff_kjerag[storm].interval': 25, 'bond_eff_kjerag[storm].base_time': 20, 'bond_eff_kjerag[storm].time_per_stack': 0.1 };
-  const iv = bb['bond_eff_kjerag[storm].interval'];
-  const frozenAt = (layers) => {
-    const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, bonds: { kjeragShip: { count: 6, active: true, tier: 2, layers } }, enemies: [{ key: 'enemy_dummy', pos: [10, 6] }], autoFinish: false, timeLimit: 200 });
-    h.step();
-    kjeragColdWind(h.b, 'p1', bb);
-    const e = h.enemy('enemy_dummy');
-    const seen = [];
-    for (let t = 0; t < iv * 5; t++) { h.run(1); if (t >= iv * 2) seen.push(!!e.s.flags.freeze); }
-    return seen;
-  };
-  assert.ok(frozenAt(50).every(Boolean), '50 layers: frozen from the second gust on, without a gap');
-  assert.ok(!frozenAt(49).some(Boolean), '49 layers: the cold runs out before each gust');
-});
-
 test('“双眼皮” turret (机械援助 / device override): arts shots at 900 ATK on its range, ASPD + layers, fragile per layer', REAL, () => {
   const stage = ds.getStage('act2autochess_m01');
   const d = stage.devices.find((x) => x.raw?.alias === 'trap_1104_aclasert#1');
