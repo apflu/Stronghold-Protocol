@@ -4,7 +4,8 @@
 //     protocol, server/net.js), built from the startServer() options (config.js decides which go where);
 //   * WebSocket (ws) at /ws, maxPayload 64 KB, no per-message deflate → Network.handleConnection. Refused at the
 //     upgrade: any other path 404; per-network socket limit for internet clients (maxConnectionsPerAddr, see net.js
-//     clientAddress; local/LAN peers are exempt) 429; server full (maxConnections) or shutting down 503.
+//     clientAddress; local/LAN peers are exempt) 429; server full (maxConnections) or shutting down 503; with
+//     SP_ACCESS=invite a device without an invite cookie 403 (access.js admit — it also hands the invite to the session).
 
 import { WebSocketServer } from 'ws';
 import { Network, SessionRegistry, NET_DEFAULTS } from '../net.js';
@@ -18,13 +19,14 @@ export const WS_MAX_PAYLOAD = 64 * 1024;
 /**
  * The session stack of one server.
  * @param {{ MatchClass?: Function, seedFn?: () => number, [option: string]: any }} opts startServer() options
- * @param {{ data: object, log: object }} deps the game data the lobby's matches use, the logger
+ * @param {{ data: object, log: object, access?: { netOptions: object, lobbyOptions: object } | null }} deps the game data
+ *   the lobby's matches use, the logger, the SP_ACCESS gate (access.js: its Network / Lobby options)
  * @returns {{ registry: SessionRegistry, lobby: Lobby, network: Network }}
  */
-export function createSessionStack(opts, { data, log }) {
-  const netOptions = netOptionsFrom(opts);
+export function createSessionStack(opts, { data, log, access = null }) {
+  const netOptions = { ...netOptionsFrom(opts), ...access?.netOptions };
   const registry = new SessionRegistry({ reconnectWindowMs: netOptions.reconnectWindowMs ?? NET_DEFAULTS.reconnectWindowMs });
-  const lobbyOptions = lobbyOptionsFrom(opts);
+  const lobbyOptions = { ...lobbyOptionsFrom(opts), ...access?.lobbyOptions };
   const lobby = new Lobby({ registry, log, MatchClass: opts.MatchClass, getData: () => data, seedFn: opts.seedFn, options: lobbyOptions });
   const network = new Network({ registry, handler: lobby, log, options: netOptions });
   return { registry, lobby, network };
@@ -33,10 +35,10 @@ export function createSessionStack(opts, { data, log }) {
 /**
  * Serve the WebSocket endpoint /ws on `server` (its 'upgrade' event).
  * @param {import('node:http').Server} server
- * @param {{ network: Network, log: object }} deps
+ * @param {{ network: Network, log: object, access?: { admit: (req: import('node:http').IncomingMessage) => boolean } | null }} deps
  * @returns {WebSocketServer}
  */
-export function attachWebSocket(server, { network, log }) {
+export function attachWebSocket(server, { network, log, access = null }) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD, perMessageDeflate: false, clientTracking: false });
   wss.on('connection', (ws, req) => network.handleConnection(ws, req));
   wss.on('error', (e) => log.error('[ws] server error', e));
@@ -48,6 +50,7 @@ export function attachWebSocket(server, { network, log }) {
       try { socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`); } catch { socket.destroy(); }
     };
     if (!parts || parts.rawPath !== '/ws') { reject(404, 'Not Found'); return; }
+    if (access && !access.admit(req)) { reject(403, 'Forbidden'); return; }
     const refused = network.admission(req);
     if (refused === 'per-address') { reject(429, 'Too Many Requests'); return; }
     if (refused) { reject(503, 'Service Unavailable'); return; }

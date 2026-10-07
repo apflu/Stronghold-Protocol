@@ -2,6 +2,7 @@
 // (i18n-ignore-file: the error pages are bilingual by design, 中文 · English — docs/I18N.md)
 //
 //   * a URL longer than 4096 characters → 414; one that does not parse → 400;
+//   * SP_ACCESS (access.js, when on): POST /invite, invite links and the invite-only gate;
 //   * any method but GET / HEAD → 405 with `Allow: GET, HEAD`;
 //   * GET /healthz → JSON status (protocol `version`, release `app`, uptime, the served `build`, sockets, sessions,
 //     rooms, matches), never cached;
@@ -33,15 +34,17 @@ export function healthReport({ startedAt, network, registry, lobby }) {
  * The request listener for `http.createServer`.
  * @param {{ serveStatic: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse,
  *             rawPath: string, query: string) => Promise<void>,
- *           health: Parameters<typeof healthReport>[0], log: object }} deps
+ *           health: Parameters<typeof healthReport>[0], log: object,
+ *           access?: ReturnType<typeof import('./access.js').createAccess> }} deps
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void}
  */
-export function createRequestHandler({ serveStatic, health, log }) {
+export function createRequestHandler({ serveStatic, health, log, access = null }) {
   async function handleRequest(req, res) {
     const url = req.url || '/';
     if (url.length > MAX_URL_LENGTH) { sendError(req, res, 414, '请求地址过长 · URI too long'); return; }
     const parts = splitUrl(url);
     if (!parts) { sendError(req, res, 400, '请求地址无效 · Bad request'); return; }
+    if (access && await access.handle(req, res, parts)) return;
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.setHeader('Allow', 'GET, HEAD');
       sendError(req, res, 405, '不支持的请求方法 · Method not allowed');
