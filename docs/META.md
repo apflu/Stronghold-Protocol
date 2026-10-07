@@ -293,6 +293,43 @@ flowing), then `botPrepEnd` (the rehearsed layout when it won, temp, Ready). The
 default layout stays). Virtual time runs it in one go (same decisions). Tests default rehearsal to 0
 (`test/match/harness.js`); `tools/matchrun.mjs --rehearsal N` sets it.
 
+**The host's own options (`server/match/hostOptions.js`, README「房主选项」)** — a private instance's house rules, each
+off by default (unset = the official game; `test/match/harness.js` never reads them from the environment):
+
+**轮回之终末 box (`SP_BOOST`, `BOOST_DEFAULT`):** off by default; on, rooms offer a per-player box (`room.boost`,
+shown on the seat to everyone; `room.state.boostable` carries the coins for the tooltip). A seat that ticked it takes
++4 coins at every round start (outside `stats.fundsGained`). The price: when the last prep (R14) ends, a boxed seat with
+no bond at 999 layers is eliminated before the Final Assault (`Match._boostReckoning`; layers do not grow there).
+
+**Assist (`SP_BOT_ASSIST`, `BOT_ASSIST`):** off by default; on, it applies to co-op 绝境 / 终极 matches with a human
+seat (`m.botAssist`, else null) and only helps in ways a teammate does not see directly — no LP, HP or stat change: bots
+take +2 coins at every round start (outside `stats.fundsGained`), the first chess slot of each shop roll is with probability
+0.4 drawn on the bots' rng among the bases it owns unmerged that no other alive player holds a pair of (the slot's normal
+`rngShop` draw is still made, so the shop stream does not move), and from R8 operator power weighs × 1.5 (swap low tiers
+out; AI seats only — a human on AI 托管 / 暂离 keeps the plain bot play). Measured (同盟 终极, 3 stronger seats + 1 AI, 60
+seeds — with the lucky draw then on every slot, cut to the first slot after players found the AI nearly all elites): the
+AI reaches the Final Assault 19/60 instead of 2/60, late-round leaks 14.6 → 7.3, perfect late rounds 3 → 25 %, the other
+seats' elites unchanged. Each part alone moved little; the coins and the shop luck together do (merges need both).
+`test/match/botassist.test.js`.
+
+**Preferred bond (`SP_BOT_PREFER_BOND`, `m.botPreferBond`):** a bond id (players asked for 3 坚守, `steadShip`): members
+score +20 while the bot owns fewer than the bond's top threshold, a lineup reaching it +30 (AI seats only). Bots then field
+3 坚守 in ≈ 60 % of their boards from R6 (16 % without); measured neutral on strength. 坚守's share only covers its own
+player's operators (bonds/addon/battle.js), so it does not shield teammates on shared fields.
+
+**Preferred strategy (`SP_BOT_PREFER_BAND`, `m.botPreferBand`), 联防 helpers (`SP_BOT_HELP_LAST`):** an AI seat takes the
+strategy in the draft while no teammate has it; holding 阿米娅 (众志合一) that way it builds wide (+35 per reached
+active-bond threshold, +8 for a chess that opens one more bond). With `SP_BOT_HELP_LAST` the 联防 helpers are humans first
+— the helpers collect the kill bounties, and the first helper meets the enemies first — and AI seats fill a slot left
+(`unite.js helperOrder`).
+
+**Leader pool (`SP_BOSS_HP_MUL`, `_SOLO`, `_COOP`):** × the official pool of both boss rounds (`GameData.bossPoolShare`
+→ `gd.hostBossHpMul`), which since 0.2.0 is bloodPoint × the players alive at the fight start (solo × 1).
+**Bounty rewards (`SP_BOUNTY_COINS`):** `effectId=coins,…` replaces a bounty card's reward on the draft card, its text and
+every bounty added (`choices.js bountyCoinOf`, `Match.addBounty`). **Banned wave groups (`SP_FACTION_EXCLUDE`):** special
+entries a round never draws (`waves.js pickRoundEntry`, `gd.excludedFactions`). **Practice coins (`SP_BONUS_FUNDS`,
+`_FOR`):** the solo human's extra coins per round start (named players only when listed).
+
 ---
 
 ## 2. Effect registry (content API)
