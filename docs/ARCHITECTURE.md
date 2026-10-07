@@ -73,14 +73,15 @@ so old imports keep working: `public/js/ui/gameLogic.js` (`public/js/ui/gameLogi
 | path | what |
 |---|---|
 | `server/index.js` | the process entry (`npm start`); `startServer()` wires `server/http/` |
-| `server/http/` | `config.js` (environment), `websocket.js` (sessions, `/ws`), `static.js` (the mounts), `media.js`, `files.js` (MIME, gzip, ETag, ranges), `buildTag.js`, `routes.js` (`/healthz`), `common.js`, `boot.js` (banner, shutdown) |
+| `server/http/` | `config.js` (environment), `websocket.js` (sessions, `/ws`), `static.js` (the mounts), `media.js`, `files.js` (MIME, gzip, ETag, ranges), `buildTag.js`, `routes.js` (`/healthz`), `common.js`, `boot.js` (banner, shutdown), `access.js` (SP_ACCESS: invite links, the invite-only gate) |
+| `server/access.js` | the invite store of SP_ACCESS (`access.json`, shared with `tools/access.mjs`) |
 | `server/net.js` | sessions and reconnect tokens, rate limits, message validation |
 | `server/lobby.js` | rooms, seats, AI seats, spectators; starts a `Match` |
 | `server/data.js` | loads `data/*.json` once (frozen) |
 | `server/packs.js` | the content packs (PACKS.md): finds the language packs of `public/i18n/` and the pack folders of `packs/`, validates them, answers `/packs/index.json` and which pack files may be served; re-reads the folders when they change |
 | `server/match/Match.js` | one match: the phase machine, timers, the round loop, co-op, the views; its methods are in `server/match/match/` (`phases.js`, `prep.js`, `combat.js`, `clientCombat.js`, `reports.js`, `unitePhase.js`, `bossRounds.js`, `settle.js`, `views.js`, `intents.js` …) |
 | `server/match/PlayerState.js` | one player's shop, hand, board, items, bonds and LP, and every prep intent; its methods are in `server/match/player/` (`economy.js`, `acquire.js`, `placement.js`, `items.js`, `pieces.js`, `prep.js`, `round.js`, `diy.js`, `views.js` …) |
-| `server/match/` (the rest) | `pool.js` (the shared chess pool), `board.js` (placement), `bondsMeta.js`, `effectsMeta.js` and `builtinMeta.js` (prep-phase effects), `choices.js` (机变), `waves.js`, `unite.js` (联防), `finalAssault.js`, `results.js`, `bot.js` (AI players and AI 托管), `fields.js` (the battles of a combat phase), `scheduler.js`, `gamedata.js` |
+| `server/match/` (the rest) | `pool.js` (the shared chess pool), `board.js` (placement), `bondsMeta.js`, `effectsMeta.js` and `builtinMeta.js` (prep-phase effects), `choices.js` (机变), `waves.js`, `unite.js` (联防), `finalAssault.js`, `results.js`, `bot.js` (AI players and AI 托管), `fields.js` (the battles of a combat phase), `scheduler.js`, `gamedata.js`, `eventlog.js` (the host's event log, SP_LOG_DIR; read by `tools/logs.mjs`) |
 | `server/sim/Battle.js` | one battle field; its methods are in `server/sim/battle/` (`lifecycle.js`, `spawns.js`, `deploy.js`, `blocking.js`, `combat.js`, `status.js`, `summons.js`, `displacement.js`, `events.js` …) |
 | `server/sim/` (the rest) | `skills.js`, `ai.js`, `damage.js`, `buffs.js`, `targeting.js`, `grid.js` (pathing), `units.js`, `professions.js`, `snapshot.js`, `spec.js` (the BattleSpec), `simdata.js` (data records → engine defs), `nodeData.js` (the Node-only data loader, never served) |
 | `server/sim/content/` | everything game-specific, installed into a battle by `server/sim/content/index.js` |

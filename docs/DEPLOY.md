@@ -216,6 +216,39 @@ docker run -d --name stronghold -p 3000:3000 --restart unless-stopped \
 
 镜像从源码（`git clone`）构建，Releases 的整合包不含 `Dockerfile`。镜像基于 `node:22-alpine`，多阶段构建，只含生产依赖；`public/vendor` 在构建时生成。`.dockerignore` 排除了 `public/assets`（不会把宿主机素材打进构建上下文）；`public/fonts`、`data/assets.json` 和 `data/local-assets.json` 若存在会被复制进去。环境变量同 README（`-e SP_VERIFY=sample` 等）。健康检查：`GET /healthz`。
 
+事件日志（可选）：设置 `SP_LOG_DIR` 并把目录挂载出来，重启容器也不会丢：
+
+```bash
+mkdir -p ~/stronghold-logs
+docker run -d --name stronghold -p 3000:3000 --restart unless-stopped \
+  -e SP_LOG_DIR=/app/logs -v ~/stronghold-logs:/app/logs stronghold-protocol
+```
+
+每行一个 JSON：房间的建立 / 加入 / 开局 / 结束与参与者（昵称、来源地址）、每 5 分钟一次在线房间快照、每个操作（购买、放置、配装……真人和 AI 都记）、每次资金 / 层数变化及其来源（哪个特质 / 装备 / 策略）、每场战斗的完整参数（可在本地精确重算）与结果、Boss 血池每秒的入账。查看：
+
+```bash
+node tools/logs.mjs --dir ~/stronghold-logs            # 当前在线的房间
+node tools/logs.mjs history --dir ~/stronghold-logs    # 历史房间、参与者、每局结果
+node tools/logs.mjs players --dir ~/stronghold-logs    # 每个昵称的来源地址、首次 / 最近出现
+node tools/logs.mjs match ABCD --dir ~/stronghold-logs --acts   # 某个房间最近一局的逐回合记录
+```
+
+一局完整的同盟模拟约 2 MB；日志不会自动清理。
+
+准入（可选）：`SP_ACCESS=invite` 时只有用邀请链接打开过本站的设备能进入（页面、静态资源和 WebSocket 都检查；`/healthz` 不受限）。一个链接对应一名玩家，最多 3 台设备；打开链接只显示一个「加入」确认页，点了按钮才登记这台设备（聊天软件的链接预览、安全检查只抓页面，不会占名额），每台设备得到一个长期 cookie，不用再登录；同一链接下的所有设备共用一个昵称（第一台设备填的名字，之后任何一台改名都会同步）。邀请与设备记录保存在 `SP_ACCESS_FILE`（默认 `SP_LOG_DIR/access.json`，只存哈希）：
+
+```bash
+docker run … -e SP_ACCESS=invite -e SP_LOG_DIR=/app/logs -v ~/stronghold-logs:/app/logs stronghold-protocol
+SP_LOG_DIR=~/stronghold-logs SP_PUBLIC_URL=https://example.com node tools/access.mjs invite 小明   # 打印邀请链接（只显示一次）
+SP_LOG_DIR=~/stronghold-logs node tools/access.mjs list            # 邀请、昵称、设备、最近使用
+SP_LOG_DIR=~/stronghold-logs node tools/access.mjs kick <设备ID>    # 移除一台设备（腾出名额）
+SP_LOG_DIR=~/stronghold-logs node tools/access.mjs revoke <邀请ID>  # 停用整条邀请
+```
+
+`SP_ACCESS=host` 是折中：网站对所有人开放，但只有受邀设备能创建房间（含独立模拟，校验在服务器的大厅里，改客户端绕不过去），其他人凭同盟密钥加入（或观战）受邀玩家的房间；访客每个网络每分钟最多输错 10 次密钥（加入与观战共用）。
+
+运行中的服务器会在几秒内读到改动。先用 `SP_ACCESS=watch` 观察一段时间（事件日志里的 `access.deny` 行）再切到 `invite` 也可以。
+
 docker compose 示例：
 
 ```yaml

@@ -116,6 +116,8 @@ npm start          # 启动服务器：http://localhost:3000
 | `SP_COMBAT` | `client` | `client`：各玩家浏览器模拟自己的战斗（服务器负载极低）；`server`：由服务器模拟并推流 |
 | `SP_VERIFY` | `off` | 服务器复算客户端上报的战斗结果：`off` / `sample`（约 1/8 抽查）/ `all`（全部复算，更耗 CPU） |
 | `TRUST_PROXY` | `auto` | 是否信任 `X-Forwarded-For` 等转发头：`auto` 只信任来自本机 / 内网的代理；`1` 总是；`0` 从不 |
+| `SP_ACCESS` | `open` | 准入：`open` 不限制；`host` 任何人都能进入和加入同盟，但只有用邀请链接打开过的设备能创建房间（含独立模拟，由服务器校验）；`invite` 只允许用邀请链接打开过的设备进入（一个链接一名玩家，最多 3 台设备，共用昵称）；`watch` 不拦人、只记录会被拦下的访问。邀请存放在 `SP_ACCESS_FILE`（默认 `SP_LOG_DIR/access.json`），用 `node tools/access.mjs` 管理（见 docs/DEPLOY.md）；未受邀访客看到的提示可用 `SP_ACCESS_TITLE` / `SP_ACCESS_MESSAGE` 自定义 |
+| `SP_LOG_DIR` | 空 | 事件日志目录（每天一个 `events-日期.jsonl`）：房间与参与者、每个操作、资金 / 层数来源、每场战斗的完整参数与结果；用 `node tools/logs.mjs` 查看（见 docs/DEPLOY.md） |
 | `DEBUG` | 空 | 设为任意值输出详细日志 |
 | `SP_NO_BROWSER` | 空 | 设为 `1` 时启动脚本不自动打开浏览器 |
 

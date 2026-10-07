@@ -191,6 +191,7 @@ import { MatchReports } from './match/reports.js';
 import { MatchUnite } from './match/unitePhase.js';
 import { MatchBoss } from './match/bossRounds.js';
 import { MatchSettle } from './match/settle.js';
+import { instrumentMatch } from './eventlog.js';
 
 export { FLOW_TICKER_PRIORITY, DELAYS, BAND_TURN_SECONDS } from './match/common.js';
 
@@ -380,6 +381,8 @@ export class Match {
     this.hiddenReached = false;
     this.outcome = null;
     this._turnToken = 0;
+    // the host's event log (SP_LOG_DIR; no-op when off): wraps this match's and its players' methods
+    instrumentMatch(this);
   }
 }
 

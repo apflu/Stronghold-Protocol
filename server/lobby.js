@@ -95,6 +95,7 @@
 //     a player seat (the seat is kept and given back on resume).
 
 import { randomBytes, randomInt } from 'node:crypto';
+import { eventLog, logRoom, startRoomSnapshots } from './match/eventlog.js';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkNotOwned, checkDiyPicks } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
@@ -113,6 +114,8 @@ export const LOBBY_DEFAULTS = Object.freeze({
   maxMatchesPerAddr: 8,   // matches started from one client network that may run at once (0 = unlimited)
   resyncMinGapMs: 1000,   // heavy resyncs (match state / result replay) per session at most this often on repeated hellos
   soloReconnectWindowMs: null, // a dropped solo run stays resumable this long (null = data singleReconnectTime, 24 h)
+  membersCreateOnly: false, // SP_ACCESS=host: only sessions on an invited device (session.access) create rooms
+  guestJoinMisses: 10,     // SP_ACCESS=host: wrong room codes a guest network may try per minute (code guessing)
 });
 
 /** Official `singleReconnectTime` (s) when the data lacks it (constData, research 01 §1). */
@@ -240,6 +243,8 @@ export class Lobby {
     this.resyncTimers = new Map();
     /** per-network limit warnings: at most one log line per 10 s (the rest are counted) */
     this.limitLog = { at: -Infinity, suppressed: 0 };
+    /** event log (SP_LOG_DIR): a snapshot of every live room every 5 min */
+    this.roomSnapshots = startRoomSnapshots(() => this.rooms.values());
   }
 
   /** @param {string} code @returns {Room | null} */
@@ -269,6 +274,7 @@ export class Lobby {
    * @param {{ resumed: boolean, repeat: boolean }} info
    */
   onHello(session, { resumed, repeat }) {
+    if (!repeat && eventLog.enabled) eventLog.write({ type: 'hello', pid: session.playerId, player: session.name, addr: session.addr, resumed: !!resumed, room: session.roomCode ?? null });
     if (!resumed && !repeat) return;
     const room = this.roomOf(session);
     if (!room) {
@@ -357,6 +363,7 @@ export class Lobby {
    * @param {string} [reason]
    */
   shutdown(reason = 'shutdown') {
+    if (this.roomSnapshots) { clearInterval(this.roomSnapshots); this.roomSnapshots = null; }
     for (const room of [...this.rooms.values()]) this.disposeRoom(room, reason);
     for (const t of this.graceTimers.values()) clearTimeout(t);
     this.graceTimers.clear();
@@ -369,6 +376,9 @@ export class Lobby {
   // ---------------------------------------------------------------------------------------------------
 
   create(session, { mode, difficulty }) {
+    // SP_ACCESS=host: invited devices only (server/access.js — the socket's cookie, checked at the upgrade: a client
+    // cannot claim it); guests join an invited player's room by its code
+    if (this.opts.membersCreateOnly && !session.access) return fail(ERR.FORBIDDEN, 'only invited players create rooms');
     const cur = this.roomOf(session);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
     if (this.rooms.size >= this.opts.maxRooms) return fail(ERR.INTERNAL, 'too many rooms');
@@ -393,14 +403,18 @@ export class Lobby {
     session.notice = null;
     session.pendingResult = null;
     this.log.info(`[lobby] ${code} created (${mode}/${difficulty}) by ${session.name}`);
+    logRoom('room.create', room, { pid: session.playerId, player: session.name, addr: session.addr });
     this.broadcastState(room);
     return OK;
   }
 
   join(session, { code }) {
     const norm = String(code).trim().toUpperCase();
+    // SP_ACCESS=host: a guest network gets guestJoinMisses wrong codes per minute (rooms are only reachable by code)
+    const guestKey = this.guestKeyOf(session);
+    if (guestKey && this.guestMisses(guestKey) >= this.opts.guestJoinMisses) return fail(ERR.RATE, 'too many wrong codes');
     const room = norm.length === ROOM_CODE_LEN ? this.rooms.get(norm) : undefined;
-    if (!room) return fail(ERR.ROOM_NOT_FOUND);
+    if (!room) { if (guestKey) this.guestMisses(guestKey, true); return fail(ERR.ROOM_NOT_FOUND); }
     const cur = this.roomOf(session);
     // idempotent for members; a spectator of this room goes on below: it may take a free player seat (header)
     if (cur === room && !room.spectatorOf(session.playerId)) { this.sendState(room, session); return OK; }
@@ -415,13 +429,31 @@ export class Lobby {
     session.notice = null;
     session.pendingResult = null;
     if (!room.hostId) room.hostId = session.playerId;
+    logRoom('room.join', room, { pid: session.playerId, player: session.name, addr: session.addr });
     this.broadcastState(room);
     return OK;
+  }
+
+  /** SP_ACCESS=host: the network key a guest's wrong room codes count against (null: not limited). */
+  guestKeyOf(session) {
+    return this.opts.membersCreateOnly && !session.access ? (session.limitKey || session.addr || session.playerId) : null;
+  }
+
+  /** Wrong room codes of a guest network in the last minute (`add`: count one more). */
+  guestMisses(key, add = false) {
+    const now = this.now();
+    const m = this.guestMissLog || (this.guestMissLog = new Map());
+    const list = (m.get(key) || []).filter((t) => now - t < 60_000);
+    if (add) list.push(now);
+    if (list.length) m.set(key, list); else m.delete(key);
+    if (m.size > 5000) for (const k of m.keys()) { m.delete(k); if (m.size <= 4000) break; }
+    return list.length;
   }
 
   leave(session) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
+    logRoom('room.leave', room, { pid: session.playerId, player: session.name });
     this.removeMember(room, session.playerId);
     return OK;
   }
@@ -432,8 +464,11 @@ export class Lobby {
    */
   spectate(session, { code }) {
     const norm = String(code).trim().toUpperCase();
+    // SP_ACCESS=host: the same wrong-code budget as join
+    const guestKey = this.guestKeyOf(session);
+    if (guestKey && this.guestMisses(guestKey) >= this.opts.guestJoinMisses) return fail(ERR.RATE, 'too many wrong codes');
     const room = norm.length === ROOM_CODE_LEN ? this.rooms.get(norm) : undefined;
-    if (!room) return fail(ERR.ROOM_NOT_FOUND);
+    if (!room) { if (guestKey) this.guestMisses(guestKey, true); return fail(ERR.ROOM_NOT_FOUND); }
     const cur = this.roomOf(session);
     if (cur === room) {
       if (!room.spectatorOf(session.playerId)) return fail(ERR.ALREADY, 'seated as a player');
@@ -692,6 +727,7 @@ export class Lobby {
       room.replay = null;
       room.matchCount++;
       this.log.info(`[lobby] ${room.code} match #${room.matchCount} starting (${room.mode}/${room.difficulty}, ${seats.length} seats, seed ${seed})`);
+      logRoom('room.start', room, { matchNo: room.matchCount, seed });
       this.broadcastState(room);
       match.start();
     } catch (e) {
@@ -715,6 +751,7 @@ export class Lobby {
     room.replay = this.buildReplay(room, ctx);
     setImmediate(() => this.disposeMatchCtx(ctx));
     this.log.info(`[lobby] ${room.code} match #${room.matchCount} ended`);
+    logRoom('room.end', room, { matchNo: room.matchCount, victory: summary?.victory ?? null, reason: summary?.reason ?? null, roundsPassed: summary?.roundsPassed ?? null });
     for (let i = 0; i < room.seats.length; i++) {
       const s = room.seats[i];
       if (!s || s.isBot) continue;
@@ -1032,6 +1069,7 @@ export class Lobby {
     }
     if (ctx) this.disposeMatchCtx(ctx);
     this.log.info(`[lobby] ${room.code} disposed (${reason})`);
+    logRoom('room.dispose', room, { reason });
   }
 
   genCode() {
