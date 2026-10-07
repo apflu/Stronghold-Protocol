@@ -313,8 +313,10 @@ function raidTile(battle, u, e, reach) {
 /**
  * Jump candidates of player `pid`, in priority order: the ground enemies an operator may target (not flying,
  * canTargetEnemy) — those of the player's own field (`ownerId`), the others only when it has none —, the most advanced
- * first (least remaining path distance, then the earliest spawned) [ASSUMED, research 02 §3.18]. The same list for
- * every member of the player (canTargetEnemy reads the enemy, not the attacker).
+ * first (least remaining path distance, then the earliest spawned) [ASSUMED, research 02 §3.18]; after them the player's
+ * own ally targets (Battle.setAllyTarget: 白铁's 铁钳号·原型机, an enemy-camp summon our operators attack — players' report:
+ * 突袭 takes it as a target, and the official trick alternates between two of them, every jump a new deployment). The
+ * same list for every member of the player (canTargetEnemy reads the enemy, not the attacker).
  */
 function raidTargets(battle, u, pid) {
   const own = [], other = [];
@@ -325,7 +327,18 @@ function raidTargets(battle, u, pid) {
   const list = own.length ? own : other;
   const dist = new Map(list.map((e) => [e, num(battle.remainingDistance ? battle.remainingDistance(e) : 0)]));
   list.sort((a, b) => dist.get(a) - dist.get(b) || a.id - b.id);
+  if (battle._allyTargets && battle._allyTargets.size) {
+    for (const a of battle._allyTargets) if (a.alive && a.deployed && !a.hidden && a.ownerId === pid) list.push(a);
+  }
   return list;
+}
+
+/**
+ * When the member last attacked an enemy: its last attack (lastAttackAt), unless that one only hit ally targets (a
+ * 铁钳号 — attacking it is no fight: the idle timer runs on), then its last attack on an enemy (the `attack` hook in install).
+ */
+function raidLastFight(u) {
+  return u.lastAttackAt === u.mem[KEY.raid + ':ally'] ? (u.mem[KEY.raid + ':atk'] ?? -Infinity) : (u.lastAttackAt ?? -Infinity);
 }
 
 function raidPoll(battle, st) {
@@ -334,7 +347,7 @@ function raidPoll(battle, st) {
   let targets = null; // the player's candidates (raidTargets), shared by its members until a jump changes the field
   for (const u of st.members[ID.raid]) {
     if (!onField(u) || !u.canAct) continue;
-    const since = Math.max(u.lastAttackAt ?? -Infinity, u.deployedAt ?? -Infinity, u.mem[KEY.raid] ?? -Infinity);
+    const since = Math.max(raidLastFight(u), u.deployedAt ?? -Infinity, u.mem[KEY.raid] ?? -Infinity);
     // 技能就绪: a charged skill, or a passive skill that is on (GitHub #49: skills.js `ready` is false for every passive,
     // so 缄默德克萨斯 / 宴 … only ever jumped on the idle trigger; the reporter's footage of the official game shows
     // 缄默德克萨斯 jumping within her passive's 10 s with no enemy in range). The engine keeps a passive on for the whole
@@ -349,7 +362,13 @@ function raidPoll(battle, st) {
     const idleOk = battle.time - since >= idle - 1e-9;
     if (!(ready || idleOk)) continue;
     if (battle.enemiesInKeys(u.rangeKeys || [], u, u.profile).length) continue;
-    const list = (targets ??= raidTargets(battle, u, st.pid));
+    const all = (targets ??= raidTargets(battle, u, st.pid));
+    // an ally target (铁钳号) is a stand-in: beside one a member leaves for a real enemy it can reach, else for ANOTHER
+    // one — never the one in its range (players' report: 瑕光 kept hitting one all battle long). Either trigger counts for
+    // it too: with a ready skill the member hops on at once — the official behaviour players reproduce for an endless
+    // stacking trick (owner's decision 2026-10-05)
+    const near = battle._allyTargets && battle._allyTargets.size ? battle.allyTargetsInKeys(u.rangeKeys || [], u) : null;
+    const list = near && near.length ? all.filter((e) => !near.includes(e)) : all;
     if (!list.length) continue;
     // either trigger: raidTile only offers tiles with the target in range (without that a ready skill that finds no
     // target would redeploy — firing every 部署时 effect — at every poll; the idle trigger, which lacked it up to
@@ -429,6 +448,17 @@ export function install(battle) {
     const raid = states.filter((st) => st.tiers[ID.raid] && st.members[ID.raid].size);
     if (raid.length) {
       battle.every(RAID_POLL, () => { for (const st of raid) raidPoll(battle, st); });
+      // the idle timer counts attacks on enemies only (raidLastFight): an attack on an ally target (a 铁钳号) is no fight
+      battle.on('attack', (c) => {
+        const u = c.attacker;
+        if (!u || u.side !== 'ally' || !u.mem) return;
+        const ts = c.targets || [];
+        if (ts.some((t) => t && t.side === 'enemy')) u.mem[KEY.raid + ':atk'] = battle.time;
+        else if (ts.length && ts.every((t) => battle.isAllyTarget(t))) u.mem[KEY.raid + ':ally'] = battle.time;
+      });
+      // a member's ready skill is no cast on an ally target (skills.js onAboutToAttack): with no enemy in range it hops
+      // instead, keeping its SP — the alternation trick (raidPoll)
+      for (const st of raid) for (const u of st.members[ID.raid]) u.mem.noAllyTargetCast = true;
     }
   }
 

@@ -449,9 +449,23 @@ export class SkillRuntime {
     if (this.active && this.isTimed) return false;
     if (this.rule === 'TAKE_DAMAGE' || this.rule === 'NEVER' || TICK_RULES.has(this.rule)) return false;
     if (this.pending || this._opCooling()) return false;
-    if (!this._defaultCondition()) return false;
+    if (!this._defaultCondition() && !this._allyTargetCondition()) return false;
     if (this.triggerAllies && !this._allyTriggerSatisfied()) return false;
     return this.activate('DEFAULT');
+  }
+
+  /**
+   * The attack about to be made goes to an ally target (Battle.setAllyTarget: 白铁's 铁钳号·原型机, an enemy-camp summon
+   * attacked for real): the basic strategy "技能就绪，且即将进行普通攻击" casts on it — players' report: 圣约送葬人 hit a 铁钳号
+   * for 12 s with a ready S2 and cast only at the first enemy, so no ammo went before an enemy came. Here only (the attack
+   * loop), never the every-tick checks of units that do not attack. Not a 突袭 member's (`mem.noAllyTargetCast`): it hops
+   * to another 铁钳号 instead, keeping its SP (bonds/addon/battle.js raidPoll).
+   */
+  _allyTargetCondition() {
+    const b = this.battle;
+    const u = this.unit;
+    if (this.healSkill || u.mem.noAllyTargetCast || !b._allyTargets || !b._allyTargets.size) return false;
+    return b.allyTargetsInKeys(u.rangeKeys, u).length > 0;
   }
 
   /** TAKE_DAMAGE trigger + INCREASE_WHEN_TAKEN_DAMAGE SP. */
