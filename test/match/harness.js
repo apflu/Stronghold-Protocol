@@ -11,7 +11,7 @@
 // The host's knobs (server/match/hostOptions.js), off here unless given — never read from their SP_* variables, except
 // factionExclude (SP_FACTION_EXCLUDE) and a bossHpMul passed as undefined (SP_BOSS_HP_MUL*): botAssist, botPreferBond,
 // botHelpLast, botPreferBand, bountyCoins, bossHpMul, bonusFunds, bonusFundsFor, boost (SP_BOOST numbers or '1') with
-// boostSeats (the humans' ids that ticked the 轮回之终末 box).
+// boostSeats (the humans' ids that ticked the 轮回之终末 box), uniteRoundMap (SP_UNITE_ROUND_MAP).
 // Combat mode: clientCombat (default false here: the legacy server-run mode most suites were written for; production
 // defaults to client-side combat, DESIGN §14). With clientCombat: true every human gets a scripted browser
 // (test/match/simClient.js SimClient: h.clients) unless clients: false; pace 'instant' | 'paced', perPlayer
@@ -87,6 +87,7 @@ export function makeMatch(o = {}) {
     bonusFunds: o.bonusFunds ?? 0,
     bonusFundsFor: o.bonusFundsFor ?? '',
     boost: o.boost ?? null,
+    uniteRoundMap: o.uniteRoundMap ?? false,
     clientCombat: o.clientCombat ?? false,
     verify: o.verify ?? 'off',
     headlessSliceMs: o.headlessSliceMs,

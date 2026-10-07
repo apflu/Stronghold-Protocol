@@ -51,7 +51,8 @@ export class MatchUnite {
       kind: 'unite',
       modeId: this.modeId,
       round: this.round,
-      stageId: uniteStageId(this.gd, plan.helpers.length) ?? this.stageId,
+      // (SP_UNITE_ROUND_MAP: the round's stage, as up to 0.1.4 — hostOptions.js)
+      stageId: (this.uniteRoundMap ? null : uniteStageId(this.gd, plan.helpers.length)) ?? this.stageId,
       rect: { ...GEO.UNITE_RECT },
       timeLimit: limit,
       players,

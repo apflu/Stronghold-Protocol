@@ -23,9 +23,9 @@ class NoFinish extends Battle {
  * Co-op on 战场#01 (its row 9 is fenced off at cols 5–7: "##Err###rrSrr###rrS##"): p_0 leaks 3 enemies, the other
  * players are perfect — 1 helper with 2 humans, 2 helpers with 3. Each helper fields one ranged operator in its corner.
  */
-function scenario({ humans, clientCombat }) {
+function scenario({ humans, clientCombat, uniteRoundMap = false }) {
   const h = makeMatch({
-    mode: 'coop', humans, seed: 4101 + humans, fake: true, clientCombat,
+    mode: 'coop', humans, seed: 4101 + humans, fake: true, clientCombat, uniteRoundMap,
     script: (b) => (b.kind === 'normal' ? { leaks: { p_0: 3 } } : {}),
   }).start();
   const m = h.m;
@@ -127,3 +127,19 @@ test('degraded data without the 联防 maps: the field keeps the round\'s stage'
   assert.equal(FakeBattle.instances.find((b) => b.kind === 'unite').opts.stageId, m.stageId);
   m.dispose();
 });
+
+// SP_UNITE_ROUND_MAP (wjx instance, the owner's decision 2026-10-08): 联防 on the round's own stage, as up to 0.1.4 —
+// players pointed at tournament footage (GitHub #244) where every 联防 kept the round's map
+for (const clientCombat of [true, false]) {
+  for (const humans of [2, 3]) {
+    test(`SP_UNITE_ROUND_MAP (${humans - 1} helper(s), ${clientCombat ? 'client-side combat' : 'server-run'}): the 联防 field is the round's stage`, () => {
+      const { m } = scenario({ humans, clientCombat, uniteRoundMap: true });
+      assert.equal(m.uniteRoundMap, true);
+      const { opts, battle: b } = uniteField(m, clientCombat);
+      assert.equal(opts.stageId, 'act1autochess_m01', "the round's stage, not the escaped template");
+      for (let i = 0; i < 400 && !b.finished; i++) b.step();
+      assert.deepEqual(b.errors.map((e) => `${e.label}: ${e.message}`), []);
+      checkInvariants(m);
+    });
+  }
+}

@@ -22,6 +22,9 @@
 //   opts.bonusFunds    extra coins per round start for the human of a solo match (env SP_BONUS_FUNDS, 0–50, default 0)
 //   opts.bonusFundsFor nicknames that get them (env SP_BONUS_FUNDS_FOR, comma-separated; empty = every player)
 //                      — a host's practice aid; m.bonusFunds = the coins for this match's human, or 0
+//   opts.uniteRoundMap boolean (env SP_UNITE_ROUND_MAP=1): the 联防 field is the round's own stage — its water, crates and
+//                      devices — as up to 0.1.4, not the escaped template's flat map (GitHub #41 → 0.2.0; players
+//                      reported the tournament footage of #244 showing 联防 on the round's map) — m.uniteRoundMap
 //   opts.boost         the 轮回之终末 numbers (env SP_BOOST, parseBoost; the lobby passes its own): the seats that ticked
 //                      the room's box (seats[].boost → PlayerState.boost) take BOOST_DEFAULT.funds extra coins per round
 //                      start, and the last prep's end eliminates one without a bond at 999 (match/prep.js
@@ -95,6 +98,8 @@ export function applyHostOptions(m, opts, env) {
   /** SP_BONUS_FUNDS: extra coins per round start for the solo human (PlayerState.startRound), or 0 */
   m.bonusFunds = m.isSolo && human && Number.isFinite(bonus) && bonus > 0 && (!bonusFor.length || bonusFor.includes(String(human.name ?? '').trim()))
     ? Math.min(bonus, 50) : 0;
+  /** SP_UNITE_ROUND_MAP: 联防 on the round's stage instead of the escaped template's map (match/unitePhase.js) */
+  m.uniteRoundMap = opts.uniteRoundMap != null ? !!opts.uniteRoundMap : parseFlag(env('SP_UNITE_ROUND_MAP'));
   /** SP_BOOST: the 轮回之终末 numbers for the seats that ticked the box (seats[].boost → PlayerState.boost), or null */
   m.boost = opts.boost !== undefined
     ? (opts.boost && typeof opts.boost === 'object' ? Object.freeze({ ...BOOST_DEFAULT, ...opts.boost }) : parseBoost(opts.boost))
