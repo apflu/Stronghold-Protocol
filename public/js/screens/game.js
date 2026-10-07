@@ -982,11 +982,18 @@ function MatchScreen() {
       // a tap on the ground itself: a stage device on the tile (阻隔工事 / “双眼皮” / 射击台 / 源石流发生装置: GitHub #228, PR
       // #229) explains itself first — the renderer's pick skips devices, so the tap lands here —, then a special terrain
       // tile (GitHub issue #184 「建议加入对于特殊地形的单击信息提示」) — 活性源石 / 沼泽 / 排气格栅 / 深水区 / 红蓝门 /
-      // 传送, with the numbers of the stage behind the board. An ordinary tile (road / floor / wall) says nothing, so the
-      // press keeps its other meanings (deselect, close).
+      // 传送, with the numbers of the stage behind the board. An ordinary tile (road / floor / wall) says nothing; plain
+      // ground — or outside the board (row / col null) — closes whatever card is open and the selection (wjx: players expect
+      // a tap on nothing to clear; not while the facing wheel is up).
       view.on('tileClick', (t) => {
-        if (!t || !Number.isInteger(t.row) || !Number.isInteger(t.col)) return;
+        if (!t) return;
         const L = live.current;
+        if (!Number.isInteger(t.row) || !Number.isInteger(t.col)) {
+          if (L.facing) return;
+          setDetail(null);
+          setSel(null);
+          return;
+        }
         const [row, col] = L.terrainTile(t.row, t.col);
         const device = L.deviceBattle
           ? deviceTipAt(L.terrainStage, row, col, { units: [...deviceUnitsRef.current.values()], snap: snapUnitsRef.current })
@@ -998,7 +1005,12 @@ function MatchScreen() {
           return;
         }
         const info = terrainInfo(L.terrainStage, row, col);
-        if (!info) return;
+        if (!info) {
+          if (L.facing) return;
+          setDetail(null);
+          setSel(null);
+          return;
+        }
         audio.sfx('click', { volume: 0.4 });
         setSel(null);
         setDetail({ kind: 'terrain', terrain: info });

@@ -296,3 +296,42 @@ export function noteDeviceUnits(map, { units = null, events = null } = {}) {
   for (const e of Array.isArray(events) ? events : []) if (Array.isArray(e) && e[0] === 'spawn' && isObj(e[1]) && e[1].kind === 'device' && e[1].id != null) map.set(e[1].id, e[1]);
   return map;
 }
+
+// ---- 地图特性 (wjx): the briefing's list of the stage's special terrain and stage devices ----------------------------
+
+/** Tile tips that are no feature of a stage: every stage has its gates, and the teleports explain themselves on the board. */
+const NOT_FEATURES = new Set(['start', 'end', 'telin', 'telout']);
+
+/**
+ * The briefing's 地图特性 (screens/briefing.js): each special terrain of `stage` once (the tap tip's own lines), then each
+ * stage device role once (the tap card's lines, the name of its first entry). `optional` marks a device role no entry of
+ * which is drawn at the start (“双眼皮” until 机械援助 / a 机变 card switches it on, 战场#02's crates) — the briefing leaves
+ * those out.
+ * @returns {{ key:string, kind:'terrain'|'device', name:string, lines:string[], optional:boolean }[]}
+ */
+export function stageFeatures(stage) {
+  const out = [];
+  const rows = Array.isArray(stage?.rows) ? stage.rows : [];
+  const tiles = isObj(stage?.tiles) ? stage.tiles : {};
+  const seen = new Set();
+  for (const line of rows) {
+    if (typeof line !== 'string') continue;
+    for (const ch of line) {
+      const tile = tiles[ch];
+      const key = isObj(tile) ? tile.special : null;
+      if (!key || seen.has(key) || !TERRAIN_TIPS[key] || NOT_FEATURES.has(key)) continue;
+      seen.add(key);
+      const tip = TERRAIN_TIPS[key];
+      out.push({ key, kind: 'terrain', name: t(tip.name), lines: tip.lines(stage.special).filter((s) => typeof s === 'string' && s), optional: false });
+    }
+  }
+  for (const d of Array.isArray(stage?.devices) ? stage.devices : []) {
+    if (!isObj(d) || !DEVICE_TIP_ROLES.includes(d.role) || !DEVICE_TIPS[d.role]) continue;
+    const key = `device:${d.role}`;
+    const prev = out.find((f) => f.key === key);
+    if (prev) { if (deviceDrawn(d)) prev.optional = false; continue; }
+    const card = deviceCard(stage, d, null, null);
+    out.push({ key, kind: 'device', name: card.name, lines: card.lines, optional: !deviceDrawn(d) });
+  }
+  return out;
+}
