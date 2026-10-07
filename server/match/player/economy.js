@@ -65,8 +65,8 @@ export class PlayerEconomy {
     // the slotted 自选 pieces join the draw once the 调度中心 reaches their slot's level (player/diy.js diyRollEntries)
     const id = this.m.pool.roll(this.m.rngShop, { maxTier: this.shop.level, extra: this.diyRollEntries() });
     // the normal roll is always drawn first, so the shop rng stream (every player's rolls) is the same with or without
-    // the host's lucky slot (AI assist), which only the first chess slot of a roll takes
-    const lucky = i === 0 ? this._assistChessSlot() : null;
+    // the host's lucky slot (AI assist / 轮回之终末 box), which only the first chess slot of a roll takes
+    const lucky = i === 0 ? this._assistChessSlot() ?? this._boostChessSlot() : null;
     if (lucky) return lucky;
     return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
   }
@@ -90,6 +90,16 @@ export class PlayerEconomy {
     const a = this.m.botAssist;
     if (!a || !this.isBot || !(a.shopLuck > 0) || this.m.rngBots() >= a.shopLuck) return null;
     return this._luckyChessSlot(this.m.rngBots);
+  }
+
+  /**
+   * SP_BOOST (轮回之终末 box): with probability boost.shopLuck the first chess slot of a roll is the lucky draw (the
+   * player's 自选 stock included), on its own rng stream (Match.rngBoost). null = keep the normal roll.
+   */
+  _boostChessSlot() {
+    const b = this.boost;
+    if (!b || !(b.shopLuck > 0) || this.m.rngBoost() >= b.shopLuck) return null;
+    return this._luckyChessSlot(this.m.rngBoost, this.diyRollEntries());
   }
 
   _rollItemSlot() {
