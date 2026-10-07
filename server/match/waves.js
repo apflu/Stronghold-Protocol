@@ -137,7 +137,8 @@ function entryList(gd) {
  */
 export function pickRoundEntry(gd, rng, type, round) {
   const half = round <= firstHalfMax(gd);
-  const ok = (e) => e.type === type && !!e.firstHalf === half && e.key !== ACLOON && !!gd.enemy(e.key) && !gd.inactiveEnemies.has(e.key);
+  const ok = (e) => e.type === type && !!e.firstHalf === half && e.key !== ACLOON && !!gd.enemy(e.key) && !gd.inactiveEnemies.has(e.key)
+    && !gd.excludedFactions?.has(e.key); // the host's ban (hostOptions.js: opts.factionExclude / SP_FACTION_EXCLUDE)
   let cands = entryList(gd).filter(ok);
   if (!cands.length && type !== 'SPECIAL') return pickRoundEntry(gd, rng, 'SPECIAL', round);
   if (!cands.length) return null;

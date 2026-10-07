@@ -122,6 +122,13 @@ export class GameData {
     /** bandBondIds memo */
     this._bandBonds = new Map();
     this.inactiveEnemies = new Set(Array.isArray(this.mode.inactiveEnemyKeys) ? this.mode.inactiveEnemyKeys : []);
+    // the host's knobs (hostOptions.js, per match; these defaults are the official game): special-enemy entries a round
+    // never draws (SP_FACTION_EXCLUDE), the leader pool multiplier (SP_BOSS_HP_MUL*), bounty rewards (SP_BOUNTY_COINS)
+    /** @type {Set<string>} */
+    this.excludedFactions = new Set();
+    this.hostBossHpMul = 1;
+    /** @type {Map<string, number>} */
+    this.bountyCoins = new Map();
     /** data/tuning.json (titles only, see the header) */
     this.tuning = this.raw.tuning && typeof this.raw.tuning === 'object' ? this.raw.tuning : {};
     /** standIn memo: chess id → composed 补位 record | null */
@@ -158,11 +165,13 @@ export class GameData {
   }
 
   /**
-   * Multiplier of bloodPoint for the leader pool (see bossPoolHp; the rule and the config keys: bossPoolShareOf).
+   * Multiplier of bloodPoint for the leader pool (see bossPoolHp; the rule and the config keys: bossPoolShareOf) × the
+   * host's `hostBossHpMul` (SP_BOSS_HP_MUL / _SOLO / _COOP, set per match by hostOptions.js; 1 = the official pool).
    * @param {number} [aliveCount]
    */
   bossPoolShare(aliveCount) {
-    return bossPoolShareOf(this.mode.bossHpScale, this.config.bossHpScale, this.isSolo, aliveCount);
+    const host = Number.isFinite(this.hostBossHpMul) && this.hostBossHpMul > 0 ? this.hostBossHpMul : 1;
+    return bossPoolShareOf(this.mode.bossHpScale, this.config.bossHpScale, this.isSolo, aliveCount) * host;
   }
 
   /** config.titles with the tuning overrides (stat / rule per title id) merged in. */
