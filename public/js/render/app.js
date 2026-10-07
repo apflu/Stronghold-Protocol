@@ -36,7 +36,8 @@
 //        pieceClick { uid, piece, button, detail, clientX, clientY } (battle units: { unitId, uid, unit, … })
 //        pieceDetail (right-click / long-press) · pieceHover { uid } | { uid: null } (battle: + unitId, unit)
 //        tileClick { row, col, x, y } — the ground itself was tapped and nothing stands there (GitHub issue #184:
-//        a special terrain tile's own tip; the screen resolves it with gameLogic.terrainInfo)
+//        a special terrain tile's own tip or a map device's card; the screen resolves it with gameLogic.tileTapTarget);
+//        row / col null off the board (a press on nothing: the screen clears its cards)
 //        tileHover { row, col, area, idx } | null (while dragging: the drop target — the tile under the pointer)
 //   view.pieceScreenRect(uid) → { left, top, right, bottom, width, height, x, y } (client px: the drawn body) | null
 // Picking (user playtest #4 item 1: the ground is drawn as tiles — a press on a tile is a press on the unit standing
@@ -1138,8 +1139,9 @@ export async function createFieldView(host, options = {}) {
 
   /**
    * The ground itself was tapped: nothing stands there, so the TILE explains itself — a special terrain tile (活性源石,
-   * 沼泽, 排气格栅, 深水区, 红/蓝门, 传送) opens its own card (GitHub issue #184; screens/game.js `tileClick` →
-   * gameLogic.terrainInfo, which says nothing about an ordinary floor / road / wall tile).
+   * 沼泽, 排气格栅, 深水区, 红/蓝门, 传送) or a map device (射击台, 阻隔工事 …) opens its own card (GitHub issue #184;
+   * screens/game.js `tileClick` → gameLogic.tileTapTarget); an ordinary floor / road / wall tile says nothing, and a press
+   * there closes the open card.
    * The tile is picked as a BOARD tile (`pickBoardTile`, i.e. through `prepXf.toBoard`): on a Final Assault / Hidden Core
    * PREP the board draws the boss field's own rows (stage 2–5 as board 9–12), and the screen maps board → stage once more
    * with `gameLogic.fieldTile` — reporting the DRAWN tile here would be converted twice and explain the wrong tile
@@ -1147,8 +1149,9 @@ export async function createFieldView(host, options = {}) {
    */
   function emitTileClick(ev, e) {
     const t = pickBoardTile(ev.x, ev.y);
-    if (!t || !(t.row >= 0) || !(t.col >= 0)) return;    // outside the board this field draws
-    emit('tileClick', { row: t.row, col: t.col, button: e.button, clientX: e.clientX, clientY: e.clientY });
+    // outside the board this field draws too (row / col null): a press on nothing clears the open card (screens/game.js)
+    const on = !!t && t.row >= 0 && t.col >= 0;
+    emit('tileClick', { row: on ? t.row : null, col: on ? t.col : null, button: e.button, clientX: e.clientX, clientY: e.clientY });
   }
 
   const onPointerDown = (e) => {

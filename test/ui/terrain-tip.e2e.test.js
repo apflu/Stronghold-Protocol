@@ -23,7 +23,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** Tiles of the mock's stage (act2autochess_m01) the tip must answer for, and one ordinary tile it must not. */
 const GATE = { row: 9, col: 10, name: '红门' };
 const GOAL = { row: 9, col: 2, name: '蓝门' };
-const FLOOR = { row: 10, col: 5, name: null };
+// (a road tile: (10, 5) lies in a 源石流, whose generator's card opens there too — gameLogic deviceInfo)
+const FLOOR = { row: 10, col: 7, name: null };
 
 describe('special terrain tip in the browser', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
   let srv;
