@@ -1,7 +1,7 @@
 // test/backups.test.js — the data of 补位 (stand-ins) and 自选 (DIY slots): chess.json `backup` and data/backups.json
 // (docs/DATA.md §18; tools/build-data.mjs buildBackups; shared/standIn.js, shared/diy.js). These tests pin the data the
 // gameplay reads: the 133 base chess and their types, the 17 stand-in characters and their forms, every NORMAL chess
-// resolving to its stand-in, the 4 DIY slots, the legal picks (the 71 owned 6★ with their forms and summons, the
+// resolving to its stand-in, the 4 DIY slots, the legal picks (the 72 owned 6★ — upstream's 71 plus 丰川祥子, a wjx addition — with their forms and summons, the
 // prototypes and their locked selections) and the faction bonds.
 // With the official-data cache (.cache/gamedata) the backup fields, the stand-in numbers and the bond derivation are
 // re-derived from the raw tables.
@@ -235,9 +235,9 @@ test('DIY: prototype picks — the 9 elites at tiers 5 and 6, six 4★ reserves 
   assert.equal(diyRecordOf(chess.chess_char_5_01_a, { charId: 'char_608_acpion' }, data), null, 'not a DIY slot');
 });
 
-test('DIY: the 71 owned 6★ picks — a form at every slot status with all three skills, every module at stage 1 and 3, their summons', () => {
+test('DIY: the 72 owned 6★ picks — a form at every slot status with all three skills, every module at stage 1 and 3, their summons', () => {
   const { ownedPool } = backups.diy;
-  assert.equal(ownedPool.length, 71);
+  assert.equal(ownedPool.length, 72);   // upstream's 71 + 丰川祥子 (wjx: build-data DIY_INCLUDED_COLLAB)
   let summoners = 0;
   for (const id of ownedPool) {
     const u = backups.units[id];
@@ -309,7 +309,7 @@ test('DIY: prototype picks carry the skill / module of their 补位 rows at the 
 test('DIY: the owned-6★ pool and the faction → bond rule (mainPower + every subPower vs powerIdList, else 协防干员)', () => {
   const { ownedPool, operators, prototypes } = backups.diy;
   const roster = new Set(base.map((c) => c.charId).filter(Boolean));
-  assert.equal(ownedPool.length, 71);
+  assert.equal(ownedPool.length, 72);   // upstream's 71 + 丰川祥子 (wjx: build-data DIY_INCLUDED_COLLAB)
   for (const id of ownedPool) {
     assert.ok(!roster.has(id), `${id}: a roster operator is never a pick`);
     assert.deepEqual([operators[id].rarity, operators[id].obtainable], [6, true], id);
@@ -323,11 +323,15 @@ test('DIY: the owned-6★ pool and the faction → bond rule (mainPower + every 
   }
   const tally = {};
   for (const id of ownedPool) { const k = operators[id].bonds.join('+'); tally[k] = (tally[k] || 0) + 1; }
-  assert.deepEqual(tally, { emptyShip: 38, yanShip: 14, victoriaShip: 8, sargonShip: 4, siracusaShip: 4, lateranoShip: 1, kazimierzShip: 1, 'yanShip+victoriaShip': 1 });
-  // the collab operators are out of the data and the pool (the owner's decision of 2026-10-05: copyright)
+  assert.deepEqual(tally, { emptyShip: 39, yanShip: 14, victoriaShip: 8, sargonShip: 4, siracusaShip: 4, lateranoShip: 1, kazimierzShip: 1, 'yanShip+victoriaShip': 1 });
+  // the collab operators are out of the data and the pool (the owner's decision of 2026-10-05: copyright) — but 丰川祥子
+  // (wjx instance, owner's decision 2026-10-07: tools/build-data.mjs DIY_INCLUDED_COLLAB), an owned pick with her bonds from
+  // her factions (mujica: no core bond ⇒ 协防干员)
   assert.deepEqual(backups.diy.excluded.map((id) => [id, backups.units[id], operators[id]]),
-    ['char_456_ash', 'char_1029_yato2', 'char_1048_orchd2', 'char_4123_ela', 'char_4141_marcil', 'char_4182_oblvns', 'char_4217_makoto'].map((id) => [id, undefined, undefined]),
-    '灰烬, 麒麟R夜刀, 焰狐龙梓兰 (MH05: a 联动寻访, by its display number), 艾拉, 玛露西尔, 丰川祥子, 结城理');
+    ['char_456_ash', 'char_1029_yato2', 'char_1048_orchd2', 'char_4123_ela', 'char_4141_marcil', 'char_4217_makoto'].map((id) => [id, undefined, undefined]),
+    '灰烬, 麒麟R夜刀, 焰狐龙梓兰 (MH05: a 联动寻访, by its display number), 艾拉, 玛露西尔, 结城理');
+  assert.ok(ownedPool.includes('char_4182_oblvns') && backups.units.char_4182_oblvns, '丰川祥子: an owned pick (wjx)');
+  assert.deepEqual([operators.char_4182_oblvns.powers, operators.char_4182_oblvns.bonds], [['mujica'], ['emptyShip']], '丰川祥子: bonds from her factions');
   assert.deepEqual(operators.char_017_huang.bonds, ['yanShip', 'victoriaShip'], '煌: 炎 + 维多利亚 from her subPower (mainPower rhodes / elite)');
   for (const id of [...prototypes['5'], ...prototypes['6']]) assert.deepEqual(operators[id].bonds, ['emptyShip'], `${id}: no faction`);
 });
@@ -338,10 +342,11 @@ test('DIY: powers and the owned pool re-derived from character_table', { skip: !
   const roster = new Set(Object.values(act.charShopChessDatas).map((r) => r.charId).filter(Boolean));
   const collab = (c) => [c.mainPower, ...(c.subPower || [])].some((p) => ['rainbow', 'action4', 'mujica', 'sees', 'laios'].includes(p?.teamId))
     || /^(?:MH|RS|AM|PS|DD)\d/.test(c.displayNumber || '');
+  const kept = (id) => id === 'char_4182_oblvns';   // wjx: DIY_INCLUDED_COLLAB
   const legal = Object.entries(CT).filter(([id, c]) => id.startsWith('char_') && c.rarity === 'TIER_6' && !['TOKEN', 'TRAP'].includes(c.profession) && !c.isNotObtainable && !roster.has(id));
   assert.equal(legal.length, 78, 'the excel\'s 78 obtainable 6★ outside the chess pool');
-  assert.deepEqual([...backups.diy.ownedPool].sort(), legal.filter(([, c]) => !collab(c)).map(([id]) => id).sort());
-  assert.deepEqual([...backups.diy.excluded].sort(), legal.filter(([, c]) => collab(c)).map(([id]) => id).sort());
+  assert.deepEqual([...backups.diy.ownedPool].sort(), legal.filter(([id, c]) => !collab(c) || kept(id)).map(([id]) => id).sort());
+  assert.deepEqual([...backups.diy.excluded].sort(), legal.filter(([id, c]) => collab(c) && !kept(id)).map(([id]) => id).sort());
   for (const [id, o] of Object.entries(backups.diy.operators)) {
     const c = CT[id];
     const want = [...new Set([c.mainPower, ...(c.subPower || [])].flatMap((p) => [p?.nationId, p?.groupId, p?.teamId]).filter(Boolean))];

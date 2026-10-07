@@ -1115,6 +1115,12 @@ const DIY_EXCLUDED_TEAMS = Object.freeze(['rainbow', 'action4', 'mujica', 'sees'
  * Dungeon Meshi); every other prefix in the pool is a faction (LM, NM, RE, RL, …).
  */
 const DIY_EXCLUDED_NUMBER_PREFIXES = Object.freeze(['MH', 'RS', 'AM', 'PS', 'DD']);
+/**
+ * wjx instance, owner's decision 2026-10-07: the collab operators the exclusions above would drop that stay in the
+ * owned-6★ pool anyway, by charId — 丰川祥子 (char_4182_oblvns, team mujica, AM01) only; every other collab operator stays
+ * excluded. Such a pick is built like any other (units forms, tokens, bonds from its factions) and is not in `excluded`.
+ */
+const DIY_INCLUDED_COLLAB = Object.freeze(['char_4182_oblvns']);
 
 /**
  * The skill a prototype carries in a 自选 slot when no 补位 row of the slot's tier names it (only 预备干员-医疗 at tier 5:
@@ -1237,7 +1243,8 @@ function buildUnitForm(ctx, charId, status, { chessId = null, skillIndex = null 
  * - `diy`: the slots (tier, elite id, the shop level that lists them, the rarity requirement), the prototype picks per
  *   slot tier (DIY_EXTRA_PROTOTYPES) and the skill / module each carries there (`locked`: its 补位 rows' selection at
  *   that tier — "技能携带规则与系统补位时一致"), the owned-6★ pool (obtainable, not a roster operator: no chess names it,
- *   hidden chess included — "不可甄选加入已在名单中的固定干员" — and not a collab, DIY_EXCLUDED_TEAMS: `excluded`) and, for
+ *   hidden chess included — "不可甄选加入已在名单中的固定干员" — and not a collab, DIY_EXCLUDED_TEAMS: `excluded`; the wjx
+ *   instance keeps the collab picks of DIY_INCLUDED_COLLAB) and, for
  *   every pick, its faction ids (`mainPower` and every `subPower`: "依据其「所属势力」「隐藏势力」等属性决定其盟约") and the
  *   core bonds whose `powerIdList` meets them, else `constData.fallbackBondId` (协防干员) — PRTS 「卫戍协议」
  *   "甄选加入的干员会根据其实际阵营所属分配核心盟约，若没有可匹配的则改为分配协防干员盟约".
@@ -1305,8 +1312,11 @@ function buildBackups(ctx, chess) {
       && !ch.isNotObtainable && !roster.has(id);
   }).sort(naturalCmp);
   const collabNumber = (ch) => DIY_EXCLUDED_NUMBER_PREFIXES.some((p) => new RegExp(`^${p}\\d`).test(ch.displayNumber || ''));
-  const excluded = legal6.filter((id) => teamsOf(charTable[id]).some((t) => excludedTeams.has(t)) || collabNumber(charTable[id]));
-  for (const t of DIY_EXCLUDED_TEAMS) if (!excluded.some((id) => teamsOf(charTable[id]).includes(t))) warn(`DIY_EXCLUDED_TEAMS: no owned-6★ pick of team ${t}`);
+  const collab = legal6.filter((id) => teamsOf(charTable[id]).some((t) => excludedTeams.has(t)) || collabNumber(charTable[id]));
+  for (const id of DIY_INCLUDED_COLLAB) if (!collab.includes(id)) warn(`DIY_INCLUDED_COLLAB: ${id} is not a collab owned-6★ pick (nothing to include)`);
+  const excluded = collab.filter((id) => !DIY_INCLUDED_COLLAB.includes(id));
+  // a team counts as matched when one of its 6★ is a collab pick, kept (DIY_INCLUDED_COLLAB) or excluded
+  for (const t of DIY_EXCLUDED_TEAMS) if (!collab.some((id) => teamsOf(charTable[id]).includes(t))) warn(`DIY_EXCLUDED_TEAMS: no owned-6★ pick of team ${t}`);
   const ownedPool = legal6.filter((id) => !excluded.includes(id));
   for (const id of ownedPool) for (const st of diyStatuses.values()) addNeed(id, st);
 
