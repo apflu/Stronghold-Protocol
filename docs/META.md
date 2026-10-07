@@ -109,7 +109,8 @@ untimed. Solo: free pick, no timer, no skip. Starting LP = `bands[id].totalHp`.
 
 ### 1.2 机变 (SP draft)
 Family = weighted pick from `choices.schedule[modeId].rounds[r].families`; cards: co-op 6 shared (each player takes 1,
-random order, 30 s first / 16 s others, timeout ⇒ a random remaining card), solo 3; solo and single-human drafts are
+random order, 30 s first / 16 s others, timeout ⇒ the card the player selected in the overlay (`g.choiceFocus {idx?}`)
+while it is free, else a random remaining card), solo 3; solo and single-human drafts are
 untimed. The UI picks a card with two taps (select → 确认选择, DESIGN §18.2). A 驰援 tactic card
 (`single_special_choice_gain_bond_chess`) is only offered while its bond still has chess in this match's pool
 (`Match.bondInPool`; a bond whose every member is banned would grant nothing); more generally a 驰援 or 盟誓

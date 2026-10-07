@@ -34,6 +34,8 @@ export class MatchIntents {
       case 'g.choice': return msg.choiceId !== undefined
         ? this.pickPersonalChoice(ps, msg.idx, msg.choiceId)
         : this.pickCard(ps, msg.idx);
+      // the 机变 card selected in the overlay (what a timed-out turn takes, startSpTurn)
+      case 'g.choiceFocus': return this.choiceFocus(ps, msg.idx ?? null);
       case 'g.ready': return ps.setReady(!!msg.ready);
       case 'g.emote': return this.emote(ps, msg.id);
       // playerId: the player tapped (a shared field names two) — the watch preference (item 56)
