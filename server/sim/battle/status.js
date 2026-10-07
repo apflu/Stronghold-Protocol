@@ -184,32 +184,27 @@ export class BattleStatus {
     // 浮空 / 缚地 (ba.levitate, ba.groundbind): "对重量大于3的单位持续时间减半"
     if ((key === 'levitate' || key === 'groundbind') && target.s.massLevel > LEVITATE_HALF_WEIGHT) duration /= 2;
     if (!(duration > 0)) return false;
-    if (key === 'cold' && target.findBuff('cold') && !(immune && immune.has('frozen'))) {
-      // PRTS 术语释义 寒冷: 友方寒冷 pairs into 冻结, 「持续时间取双方之中最高」. `duration` is this cold after 抵抗;
-      // the cold already on the target keeps timeLeft. addBuff refresh 'extend' below sets that cold to the same max.
-      // COLD_FREEZE_DURATION is only the fallback when neither side has a duration. resistApplied: that max is already
-      // post-抵抗, so the freeze must not be halved again.
-      // [ASSUMED] one catalogue cold, so an enemy-applied second cold uses this max too. PRTS states it on the 友方
-      // line only (敌方 cold becomes 冻结 when the target already has 敌方 cold or 敌方 冻结).
+    // 友方寒冷 on an enemy (every cold on it: the operators', summons', items', the 谢拉格 wind's) — wjx instance, the owner's
+    // account of the game (2026-10-07), in place of upstream 0.2.0's pair rule: every hit puts one 寒冷 and one 待冻结 layer
+    // on the enemy (each layer lasts that cold's time); 2 layers become a 冻结 for the longer of the two (PRTS 「持续时间取
+    // 双方之中最高」); a frozen enemy is not frozen again — its freeze is never extended by colds — but the layers keep
+    // stacking, and the moment the freeze ends 2 of them (oldest first) become the next one: a chain of freezes until fewer
+    // than 2 layers are left (_pairColds). Each link is a new 进入冻结 (statusApplied entered). Upstream (pair → freeze, no
+    // cold left, a 2nd cold on a frozen enemy extends it, nothing banked) matched the wind numbers (§ feedback5 kjerag
+    // tests) but not the chain.
+    const coldQueue = key === 'cold' && target.side === 'enemy' && !(immune && immune.has('frozen'));
+    if (key === 'cold' && !coldQueue && target.findBuff('cold') && !(immune && immune.has('frozen'))) {
+      // 敌方寒冷 (on an operator): PRTS 「…施加的敌方寒冷会变为敌方冻结」 names no pairing — a 2nd cold while cold ⇒ 冻结 for
+      // max(remaining cold, the incoming cold after 抵抗); COLD_FREEZE_DURATION only when neither side has a duration;
+      // resistApplied: that max is already post-抵抗.
       const prev = target.findBuff('cold');
       const spans = [prev.timeLeft, duration].filter((t) => t === Infinity || (Number.isFinite(t) && t > 0));
       const freezeFor = spans.length ? Math.max(...spans) : COLD_FREEZE_DURATION;
-      const froze = this.applyStatus(target, 'freeze', {
+      this.applyStatus(target, 'freeze', {
         duration: freezeFor, source: opts.source, force: opts.force,
         ...(spans.length ? { resistApplied: true } : {}),
       });
       if (!target.alive) return false;
-      // 友方寒冷 — every cold on an enemy: the operators', summons', items', the 谢拉格 wind's — "始终需要两两一对产生友方冻结"
-      // (PRTS 术语释义 寒冷; 异常效果 COLD "在特定条件下转变为冻结"): the pair BECOMES the 冻结, so neither cold is left and a
-      // later single cold on the frozen enemy is a 寒冷 that needs its own partner. Until 0.2.0 the older cold stayed on,
-      // extended to the freeze's length, so any cold before it ran out froze again: the 谢拉格 wind alone (every 25 s,
-      // 20 + 0.1 × layers s of cold) froze an enemy for the rest of the battle from 51 layers on — wherever it stood —
-      // and never below (community reports of 2026-10-06 「谢拉格盟约冰冻时间没有随层数正确成长」, 「…被在无法被任何干员攻击
-      // 到的地方永控」). A 敌方 cold (on an operator) keeps the old rule: PRTS 「…施加的敌方寒冷会变为敌方冻结」 names no pairing.
-      if (froze && target.side === 'enemy') {
-        this.removeBuff(target, 'cold');
-        return true;
-      }
     }
     const source = opts.source ?? null;
     let entered = true;
@@ -229,7 +224,40 @@ export class BattleStatus {
     if (f && target.side === 'enemy' && (f.levitate || f.unblockable || f.fear || f.sleep)) this._unblock(target);
     if (f && target.side === 'ally' && f.noBlock) this.releaseBlocked(target);
     if (this._hooks.statusApplied) this.emit('statusApplied', { source, target, status: key, duration, value, entered });
+    if (coldQueue && target.alive) {
+      (target._coldLayers ??= []).push(this.time + duration);
+      this._pairColds(target, source);
+    }
     return true;
+  }
+
+  /**
+   * 待冻结 → 冻结 on an enemy (applyStatus, 友方寒冷): drop the expired layers; unless the enemy is frozen, 2 layers (oldest
+   * first) become a 冻结 for the longer of their remaining times, and that freeze's natural end pairs again (the chain).
+   * The 寒冷 status follows the layers left: gone with the last one, else as long as the longest.
+   */
+  _pairColds(target, source = null) {
+    const q = target._coldLayers;
+    if (!q || !target.alive) return;
+    const now = this.time;
+    for (let i = q.length - 1; i >= 0; i--) if (!(q[i] > now + 1e-9)) q.splice(i, 1);
+    const chain = ({ unit }) => this._pairColds(unit, null);
+    const frozen = target.findBuff('freeze');
+    if (q.length >= 2 && !frozen) {
+      const [a, b] = q.splice(0, 2);
+      const until = Math.max(a, b);
+      const ok = this.applyStatus(target, 'freeze', { duration: until === Infinity ? Infinity : until - now, source, resistApplied: true });
+      if (!target.alive) return;
+      const fb = ok ? target.findBuff('freeze') : null;
+      if (fb) fb.onExpire = chain;
+    } else if (q.length >= 2 && !frozen.onExpire) {
+      frozen.onExpire = chain; // a freeze from elsewhere (a skill's own 冻结): the banked layers follow it all the same
+    }
+    const cold = target.findBuff('cold');
+    if (cold) {
+      if (!q.length) this.removeBuff(target, 'cold');
+      else cold.timeLeft = Math.max(...q) - now;
+    }
   }
 
   /** 抵抗 of a unit: share of a resisted status's duration removed (0 = none; the `resist` status value, ≤ 0.95). */
