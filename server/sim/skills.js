@@ -179,9 +179,11 @@ export class SkillRuntime {
    * 2026-10-08 (a community report and their recall of the official mode: 干员攻击范围/技能范围内有白铁的装置时技能也自动开、自动
    * 消耗，装置对干员的仇恨类似敌方单位; PRTS 铁钳号·原型机 备注 "该召唤物阵营为敌方"). It stays out of enemiesInKeys /
    * canTargetEnemy (every other selector keeps to enemies); a heal skill never counts it (禁疗: not a patient).
+   * Not for a 突袭 member (`mem.noAllyTargetCast`, wjx): with a ready skill it hops to another 铁钳号 instead, keeping its
+   * SP — the official trick players use for endless stacking (bonds/addon/battle.js raidPoll; owner's decision 2026-10-05).
    */
   _allyTargetIn(keys) {
-    if (!keys || !this.allyTargetsOk) return false;
+    if (!keys || !this.allyTargetsOk || this.unit.mem.noAllyTargetCast) return false;
     const b = this.battle;
     return !!(b._allyTargets && b._allyTargets.size) && b.allyTargetsInKeys(keys, this.unit).length > 0;
   }
