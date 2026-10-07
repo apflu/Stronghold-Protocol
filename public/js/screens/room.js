@@ -9,6 +9,8 @@
 // Spectator seats (community report #26, a remake feature): a co-op room with spectators shows the 观战席 strip under
 // the seats — names, offline marks, the host's ✕ (room.removeSpectator) — and a spectator's own view swaps the ready
 // button for 观战中 and offers 入座 (room.join of the room) while a player seat is free.
+// 轮回之终末 (SP_BOOST, a host option): a room with `boostable` shows the player's own box beside 干员调配 (room.boost)
+// and a tag on every seat that ticked it; both carry the BoostTip tooltip.
 // Texts go through t() (docs/I18N.md).
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
@@ -23,7 +25,7 @@ import { LoadoutButton } from './loadout.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating } from '../store.js';
 import { difficultyInfo } from './lobby.js';
-import { t, tc } from '../../../shared/i18n.js';
+import { t, tc, N_ } from '../../../shared/i18n.js';
 
 /**
  * Seats padded to the room's capacity (co-op 4, solo 1), each null or a seat record.
@@ -122,6 +124,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
     <div class="seat__who">
       <span class="seat__name">${seat.name || t('博士')}</span>
       ${isMe ? html`<span class="seat__you">${t('你')}</span>` : null}
+      ${seat.boost ? html`<${Tooltip} text=${html`<${BoostTip} boost=${room.boostable} />`}><span class="seat__boost">${t('轮回之终末')}</span><//>` : null}
     </div>
     <${MicroLabel}>${seat.isBot ? 'AUTONOMOUS UNIT' : `DOCTOR #${doctorNo(seat.playerId)}`}<//>
     <footer class="seat__foot">
@@ -139,6 +142,26 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
       <//>` : null}
     </footer>
   </article>`;
+}
+
+/** The lore line under the 轮回之终末 tooltip: one of these at random (picked once per tooltip mount). */
+export const BOOST_LORE = Object.freeze([
+  N_('没错，你能感受到心跳正在疯狂加速。'),
+  N_('盲目摄入的渴望，终有一日会撑破心脏。'),
+  N_('在这炽热而激烈的脉动中，与我融为一体吧。'),
+  N_('明知终有一日会爆炸，我也甘愿见到那结局。'),
+  N_('正如你渴望的那样，心跳将会愈发猛烈。'),
+]);
+
+/** 轮回之终末 (SP_BOOST): the gain, the price (red), a lore line (grey). `boost` = room.state.boostable. */
+export function BoostTip({ boost }) {
+  const [lore] = useState(() => BOOST_LORE[Math.floor(Math.random() * BOOST_LORE.length)]);
+  const funds = boost?.funds ?? 4;
+  return html`<div class="boost-tip">
+    <div class="boost-tip__up">${t('每回合额外获得 {funds} 资金', { funds })}</div>
+    <div class="boost-tip__down">${t('第 14 回合最终攻势开始时，若没有任何盟约达到 999 层，立即淘汰')}</div>
+    <div class="boost-tip__lore">${t(lore)}</div>
+  </div>`;
 }
 
 /** 观战席: the room's spectators (host: ✕ frees a seat), and 入座 for a spectator while a player seat is free. */
@@ -221,6 +244,8 @@ export function RoomScreen() {
   const start = () => run('start', () => net.request('room.start', {}));
   const addBot = () => run('add', () => net.request('room.addBot', {}));
   const removeBot = (seat) => run(`rm${seat}`, () => net.request('room.removeBot', { seat }));
+  const myBoost = !!facts.mine?.boost;
+  const toggleBoost = () => run('boost', () => net.request('room.boost', { on: !myBoost }));
   // the host removes a human before the match (community report #17): asked first; the player may join again. The
   // confirmed player's id goes along: if they left and someone else took the seat meanwhile, the server refuses it.
   const kick = async (seat, name, playerId) => {
@@ -320,6 +345,9 @@ export function RoomScreen() {
         <div class="room-bar__status">${statusLine}</div>
       </div>
       <div class="room-bar__right">
+        ${room.boostable && !facts.spectating ? html`<${Tooltip} text=${html`<${BoostTip} boost=${room.boostable} />`}><label class="room-boost">
+          <input type="checkbox" checked=${myBoost} disabled=${!online || !facts.mine || busy === 'boost'} onChange=${toggleBoost} />${t('轮回之终末')}
+        </label><//>` : null}
         <${LoadoutButton} from="room" size="lg" class="room-loadout" label=${t('干员调配')} />
         ${facts.isHost
           ? html`<${Tooltip} text=${facts.canStart ? null : t('仍有博士未准备就绪')}>

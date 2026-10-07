@@ -109,8 +109,8 @@
 //                      ('sample': ~1 in 8, in a later callback, mismatches logged; 'all': before accepting — the
 //                      server's result wins on a mismatch)
 //   opts.factionExclude / botAssist / botPreferBond / botHelpLast / botPreferBand / bountyCoins / bossHpMul /
-//   opts.bonusFunds / bonusFundsFor   the host's own knobs (env SP_FACTION_EXCLUDE, SP_BOT_*, SP_BOUNTY_COINS,
-//                      SP_BOSS_HP_MUL*, SP_BONUS_FUNDS*), each off by default — see ./hostOptions.js
+//   opts.bonusFunds / bonusFundsFor / boost   the host's own knobs (env SP_FACTION_EXCLUDE, SP_BOT_*, SP_BOUNTY_COINS,
+//                      SP_BOSS_HP_MUL*, SP_BONUS_FUNDS*, SP_BOOST), each off by default — see ./hostOptions.js
 //
 // Engine-only extra options (tests / tools; the lobby never passes them):
 //   opts.scheduler     RealScheduler (default, uses opts.now) | VirtualScheduler (./scheduler.js)
@@ -198,7 +198,7 @@ import { MatchBoss } from './match/bossRounds.js';
 import { MatchSettle } from './match/settle.js';
 
 export { FLOW_TICKER_PRIORITY, DELAYS, BAND_TURN_SECONDS } from './match/common.js';
-export { BOT_ASSIST, BOT_ASSIST_DIFFICULTIES, parseFlag } from './hostOptions.js';
+export { BOT_ASSIST, BOT_ASSIST_DIFFICULTIES, BOOST_DEFAULT, parseBoost, parseFlag } from './hostOptions.js';
 
 const BOT_REHEARSAL_DEFAULT = 3;
 /** Wall-clock ms of bot layout rehearsal per scheduler callback (real time; virtual time runs it in one go). */
@@ -258,7 +258,7 @@ export class Match {
     /** client-side combat (DESIGN §14) — see the header */
     this.clientCombat = opts.clientCombat != null ? !!opts.clientCombat : envClientCombat();
     this.verifyMode = parseVerify(opts.verify ?? env('SP_VERIFY'));
-    // the host's own knobs (SP_BOT_*, SP_BOSS_HP_MUL* …; all off by default): before the seats and the setup
+    // the host's own knobs (SP_BOT_*, SP_BOOST, SP_BOSS_HP_MUL* …; all off by default): before the seats and the setup
     applyHostOptions(this, opts, env);
     /** wall-clock ms per slice of a server-run normal / 联防 field (virtual time: at once) */
     this.headlessSliceMs = Number.isFinite(opts.headlessSliceMs) && opts.headlessSliceMs > 0 ? opts.headlessSliceMs : this.sched.virtual ? Infinity : HEADLESS_SLICE_MS;

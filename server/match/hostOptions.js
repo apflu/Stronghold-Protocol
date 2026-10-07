@@ -1,6 +1,6 @@
 // server/match/hostOptions.js — the host's own match knobs: a private instance's house rules, each off by default (the
-// official game) and read from the Match option, else from its environment variable (README「环境变量」). Match's
-// constructor calls applyHostOptions before the seats are made (PlayerState reads m.bonusFunds) and before
+// official game) and read from the Match option, else from its environment variable (README「房主选项」). Match's
+// constructor calls applyHostOptions before the seats are made (PlayerState reads m.boost / m.bonusFunds) and before
 // the per-match setup (waves.js reads gd.excludedFactions).
 //
 //   opts.factionExclude 'enemyKey,…' (env SP_FACTION_EXCLUDE): special-enemy entries (factions.json `entries`, the
@@ -22,8 +22,13 @@
 //   opts.bonusFunds    extra coins per round start for the human of a solo match (env SP_BONUS_FUNDS, 0–50, default 0)
 //   opts.bonusFundsFor nicknames that get them (env SP_BONUS_FUNDS_FOR, comma-separated; empty = every player)
 //                      — a host's practice aid; m.bonusFunds = the coins for this match's human, or 0
-// The extra coins (assist, bonus) stay outside stats.fundsGained (the result screen).
+//   opts.boost         the 轮回之终末 numbers (env SP_BOOST, parseBoost; the lobby passes its own): the seats that ticked
+//                      the room's box (seats[].boost → PlayerState.boost) take BOOST_DEFAULT.funds extra coins per round
+//                      start, and the last prep's end eliminates one without a bond at 999 (match/prep.js
+//                      _boostReckoning) — m.boost, or null
+// The extra coins (assist, bonus, box) stay outside stats.fundsGained (the result screen).
 
+import { createRng, deriveSeed } from '../sim/rng.js';
 import { parseBountyCoins } from './choices.js';
 
 /**
@@ -37,6 +42,19 @@ import { parseBountyCoins } from './choices.js';
  */
 export const BOT_ASSIST = Object.freeze({ funds: 2, shopLuck: 0.4, lateTierFrom: 8, lateTier: 1.5 });
 export const BOT_ASSIST_DIFFICULTIES = Object.freeze(['HARD', 'ABYSS']);
+/** SP_BOOST (the per-player 轮回之终末 box of the room, seats[].boost): its numbers (PlayerState). */
+export const BOOST_DEFAULT = Object.freeze({ funds: 4, shopLuck: 0.4 });
+
+/** SP_BOOST → null (off) | { funds, shopLuck }: "1" / "on" = BOOST_DEFAULT, "<funds>,<luck>" (e.g. "4,0.4") = custom. */
+export function parseBoost(v) {
+  const s = String(v ?? '').trim().toLowerCase();
+  if (!s || ['0', 'off', 'false', 'no'].includes(s)) return null;
+  if (['1', 'on', 'true', 'yes'].includes(s)) return BOOST_DEFAULT;
+  const [f, l] = s.split(',').map((x) => Number(x.trim()));
+  const funds = Number.isFinite(f) ? Math.min(50, Math.max(0, Math.trunc(f))) : BOOST_DEFAULT.funds;
+  const shopLuck = Number.isFinite(l) ? Math.min(1, Math.max(0, l)) : BOOST_DEFAULT.shopLuck;
+  return Object.freeze({ funds, shopLuck });
+}
 
 /** '1' / 'on' / 'true' / 'yes' (any case) → true. */
 export const parseFlag = (v) => ['1', 'on', 'true', 'yes'].includes(String(v ?? '').trim().toLowerCase());
@@ -77,5 +95,11 @@ export function applyHostOptions(m, opts, env) {
   /** SP_BONUS_FUNDS: extra coins per round start for the solo human (PlayerState.startRound), or 0 */
   m.bonusFunds = m.isSolo && human && Number.isFinite(bonus) && bonus > 0 && (!bonusFor.length || bonusFor.includes(String(human.name ?? '').trim()))
     ? Math.min(bonus, 50) : 0;
-  // TODO(eventlog): match.start carried botAssist, botPreferBond, bonusFunds and bossHpMul
+  /** SP_BOOST: the 轮回之终末 numbers for the seats that ticked the box (seats[].boost → PlayerState.boost), or null */
+  m.boost = opts.boost !== undefined
+    ? (opts.boost && typeof opts.boost === 'object' ? Object.freeze({ ...BOOST_DEFAULT, ...opts.boost }) : parseBoost(opts.boost))
+    : parseBoost(env('SP_BOOST'));
+  // the box's own rng stream: every other stream draws the same with or without it
+  m.rngBoost = createRng(deriveSeed(m.seed, 'boost'));
+  // TODO(eventlog): match.start carried botAssist, botPreferBond, bonusFunds, bossHpMul and seats[].boost
 }

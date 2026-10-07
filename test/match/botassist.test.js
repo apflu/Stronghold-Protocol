@@ -1,10 +1,10 @@
 // The host's knobs (server/match/hostOptions.js): SP_BOT_ASSIST (BOT_ASSIST: extra coins, a luckier shop, late tier
 // weight for AI teammates), SP_BOT_PREFER_BOND (bots build one bond to its top threshold first), SP_BONUS_FUNDS,
-// SP_BOSS_HP_MUL*, SP_BOT_HELP_LAST, SP_BOT_PREFER_BAND, SP_BOUNTY_COINS.
+// SP_BOSS_HP_MUL*, SP_BOT_HELP_LAST, SP_BOT_PREFER_BAND, SP_BOUNTY_COINS and the 轮回之终末 box (SP_BOOST).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
-import { Match, BOT_ASSIST, parseFlag } from '../../server/match/Match.js';
+import { Match, BOT_ASSIST, BOOST_DEFAULT, parseBoost, parseFlag } from '../../server/match/Match.js';
 import { makeMatch, checkInvariants, give, chessOfTier, DATA } from './harness.js';
 
 const coop = (o = {}) => makeMatch({ mode: 'coop', difficulty: 'ABYSS', humans: 1, bots: 3, fake: true, ...o });
@@ -238,4 +238,69 @@ test('SP_BOUNTY_COINS: the host reward for a bounty card — on the draft card, 
   assert.equal(bountyCard(off.m.gd, raw).coin, 1, 'default: the official reward');
   off.m.dispose();
   m.dispose();
+});
+
+test('SP_BOOST parsing: on = 4 coins and a 40% lucky first slot; "<funds>,<luck>" custom; off = null', () => {
+  assert.equal(parseBoost(''), null);
+  assert.equal(parseBoost('0'), null);
+  assert.deepEqual(parseBoost('1'), BOOST_DEFAULT);
+  assert.deepEqual({ ...BOOST_DEFAULT }, { funds: 4, shopLuck: 0.4 });
+  assert.deepEqual(parseBoost('6,0.25'), { funds: 6, shopLuck: 0.25 });
+  assert.deepEqual(parseBoost('999,7'), { funds: 50, shopLuck: 1 });
+});
+
+test('轮回之终末 box: only the seats that ticked it get the coins (outside stats) and a lucky first slot', () => {
+  const h = makeMatch({ mode: 'coop', difficulty: 'ABYSS', humans: 2, bots: 0, fake: true, boost: '1', boostSeats: ['p_0'] }).start().toPrep(1);
+  const m = h.m;
+  const [on, off] = [h.ps('p_0'), h.ps('p_1')];
+  assert.ok(on.boost && !off.boost);
+  assert.equal(on.funds - off.funds, 4, 'four more coins at the round start');
+  assert.equal(on.stats.fundsGained, off.stats.fundsGained, 'not in the result stats');
+  const [mine, theirs] = chessOfTier(1).filter((id) => m.pool.left(id) > 3);
+  for (const p of on.allChess()) on.sell(p.uid);
+  give(m, on, mine, 'hand');
+  give(m, on, theirs, 'hand');
+  give(m, off, theirs, 'hand');
+  give(m, off, theirs, 'hand');
+  m.rngBoost = () => 0;
+  on.rollShop();
+  const chess = on.shop.slots.filter((s) => s && s.kind === 'chess');
+  assert.equal(m.gd.baseIdOf(chess[0].id), mine, 'the first slot: an own unmerged operator nobody else holds a pair of');
+  assert.equal(off._boostChessSlot(), null, 'no box, no lucky slot');
+  m.rngBoost = () => 0.999;
+  assert.equal(on._boostChessSlot(), null);
+  checkInvariants(m);
+  m.dispose();
+  const plain = makeMatch({ mode: 'coop', humans: 1, fake: true, boost: null, boostSeats: ['p_0'] });
+  assert.equal(plain.ps('p_0').boost, null, 'SP_BOOST off: the box does nothing');
+  plain.m.dispose();
+});
+
+test('轮回之终末: at the end of the last prep a boxed seat with no bond at 999 is eliminated; 999 or no box survives', () => {
+  for (const capped of [false, true]) {
+    const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 3, bots: 0, fake: true, boost: '1', boostSeats: ['p_0', 'p_1'] }).autoHumans();
+    h.start().toPrep(h.m.gd.bossRound);
+    const m = h.m;
+    const [a, b, c] = ['p_0', 'p_1', 'p_2'].map((id) => h.ps(id));
+    for (const ps of [a, b, c]) assert.ok(ps.alive, `${ps.playerId} reached the last prep`);
+    a.layers = { ...a.layers, siracusaShip: capped ? 999 : 998 };
+    b.layers = { ...b.layers, siracusaShip: 999 };
+    a.recompute(); b.recompute();
+    m.endPrep();
+    assert.equal(a.alive, capped, capped ? 'a bond at 999: survives' : '998 is not enough');
+    assert.ok(b.alive, 'a bond at 999');
+    assert.ok(c.alive, 'no box, no reckoning');
+    if (!capped) assert.equal(a.eliminatedRound, m.gd.bossRound);
+    checkInvariants(m);
+    m.dispose();
+  }
+});
+
+test('轮回之终末: a solo boxed player without 999 ends the run before the Final Assault', () => {
+  const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', humans: 1, fake: true, boost: '1', boostSeats: ['p_0'] }).autoHumans();
+  h.start().toPrep(h.m.gd.bossRound);
+  h.m.endPrep();
+  assert.equal(h.ps('p_0').alive, false);
+  assert.ok(h.ended, 'the match ended');
+  h.m.dispose();
 });
