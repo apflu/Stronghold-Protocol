@@ -9,12 +9,14 @@ import { PHASE, ERR } from '../../../shared/constants.js';
 import { syntheticResult } from '../fields.js';
 import { FLOW_TICKER_PRIORITY, OK, fail } from './common.js';
 import { msg } from '../../../shared/i18n.js';
+import { logMatchStart } from '../eventlog.js';
 
 const GAME_TYPES = new Set(Object.keys(C2S).filter((t) => Object.hasOwn(C2S, t) && (t.startsWith('g.') || t.startsWith('b.'))));
 
 export class MatchPlatform {
   start() {
     if (this.disposed || this.ended || this.phase !== PHASE.LOBBY) return;
+    logMatchStart(this);
     this.guard(() => {
       if (!this.gd.visibleChess.length || this.pool.entries.size === 0) {
         this.log.error?.(`[match ${this.roomCode}] game data unusable (no chess pool) — ending the match`);

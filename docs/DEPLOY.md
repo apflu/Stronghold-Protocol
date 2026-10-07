@@ -216,6 +216,25 @@ docker run -d --name stronghold -p 3000:3000 --restart unless-stopped \
 
 镜像从源码（`git clone`）构建，Releases 的整合包不含 `Dockerfile`。镜像基于 `node:22-alpine`，多阶段构建，只含生产依赖；`public/vendor` 在构建时生成。`.dockerignore` 排除了 `public/assets`（不会把宿主机素材打进构建上下文）；`public/fonts`、`data/assets.json` 和 `data/local-assets.json` 若存在会被复制进去。环境变量同 README（`-e SP_VERIFY=sample` 等）。健康检查：`GET /healthz`。
 
+事件日志（可选）：设置 `SP_LOG_DIR` 并把目录挂载出来，重启容器也不会丢：
+
+```bash
+mkdir -p ~/stronghold-logs
+docker run -d --name stronghold -p 3000:3000 --restart unless-stopped \
+  -e SP_LOG_DIR=/app/logs -v ~/stronghold-logs:/app/logs stronghold-protocol
+```
+
+每行一个 JSON：房间的建立 / 加入 / 开局 / 结束与参与者（昵称、来源地址）、每 5 分钟一次在线房间快照、每个操作（购买、放置、配装……真人和 AI 都记）、每次资金 / 层数变化及其来源（哪个特质 / 装备 / 策略）、每场战斗的完整参数（可在本地精确重算）与结果、Boss 血池每秒的入账。查看：
+
+```bash
+node tools/logs.mjs --dir ~/stronghold-logs            # 当前在线的房间
+node tools/logs.mjs history --dir ~/stronghold-logs    # 历史房间、参与者、每局结果
+node tools/logs.mjs players --dir ~/stronghold-logs    # 每个昵称的来源地址、首次 / 最近出现
+node tools/logs.mjs match ABCD --dir ~/stronghold-logs --acts   # 某个房间最近一局的逐回合记录
+```
+
+一局完整的同盟模拟约 2 MB；日志不会自动清理。
+
 docker compose 示例：
 
 ```yaml

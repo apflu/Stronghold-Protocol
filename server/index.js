@@ -14,6 +14,8 @@
 //   http/common.js     what every answer shares: security headers, URL split, error page, JSON replies, bare 400
 //   http/boot.js       banner (Local / LAN / tunnel URLs), port-in-use hint, graceful shutdown on SIGINT / SIGTERM
 //
+// The host's event log (SP_LOG_DIR, off by default; server/match/eventlog.js, tools/logs.mjs) is opened here.
+//
 // Per-network limits for internet clients (see net.js clientAddress; local/LAN peers are exempt): open sockets
 // (maxConnectionsPerAddr, refused at upgrade with 429), rooms and running matches (lobby.js).
 //
@@ -31,6 +33,8 @@ import { BUILD_INPUTS, computeBuildTag, buildTag, resetBuildTag } from './http/b
 import { createRequestHandler } from './http/routes.js';
 import { answerClientError } from './http/common.js';
 import { lanUrls, isProcessEntry, runMain } from './http/boot.js';
+import { eventLog } from './match/eventlog.js';
+import { APP_VERSION } from '../shared/constants.js';
 
 // The public API of this module (tests and tools import it from here); the code lives in ./http/.
 export {
@@ -48,6 +52,7 @@ export {
  *   ratePerSec?: number, rateBurst?: number, maxConnections?: number, maxRooms?: number,
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
+ *   logDir?: string,
  * }} [opts]
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: import('ws').WebSocketServer,
  *                     lobby: import('./lobby.js').Lobby, network: import('./net.js').Network,
@@ -61,6 +66,12 @@ export async function startServer(opts = {}) {
 
   // The process-wide singleton serves the default data dir; a custom dir (tests) gets its own copy.
   const data = opts.dataDir ? loadData(dataDir, { log }) : getData({ dir: dataDir, log });
+  // the host's event log (docs/DEPLOY.md「事件日志」; tools/logs.mjs reads it): one per process
+  const logDir = opts.logDir ?? process.env.SP_LOG_DIR ?? '';
+  if (logDir && !eventLog.enabled) {
+    if (eventLog.open(logDir)) { log.info(`[log] event log → ${logDir}`); eventLog.write({ type: 'server.start', app: APP_VERSION, pid: process.pid }); }
+    else log.warn(`[log] SP_LOG_DIR ${logDir} is not writable — event log off`);
+  }
   const { registry, lobby, network } = createSessionStack(opts, { data, log });
   // content packs (docs/PACKS.md): scanned now — the start log names them — and again whenever their folders change
   const packs = createPackRegistry({ publicDir, dataDir, packsDir }, { log });
