@@ -188,6 +188,8 @@ export const GLYPHS = Object.freeze({
   trash: 'M9 2h6l1 2h4v2H4V4h4zM5 7h14l-1.2 15H6.2zm4 3v9h2v-9zm4 0v9h2v-9z',
   back: 'M10 5 3 12l7 7 1.4-1.4L6.8 13H21v-2H6.8l4.6-4.6z',
   flag: 'M5 2h2v20H5zm3 1h11l-2.5 4.5L19 12H8z',
+  // the damage meter's tab (ui/damagePanel.js): three bars on a base line
+  meter: 'M3 20h18v2H3zm2-9h3v8H5zm5.5-6h3v14h-3zM16 12h3v7h-3z',
   target: 'M11 2h2v3.1A7 7 0 0 1 18.9 11H22v2h-3.1A7 7 0 0 1 13 18.9V22h-2v-3.1A7 7 0 0 1 5.1 13H2v-2h3.1A7 7 0 0 1 11 5.1zm1 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4z',
 });
 
