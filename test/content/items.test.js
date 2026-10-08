@@ -954,43 +954,44 @@ test('拟态物质: owning 2 copies gives the 3rd (→ elite); otherwise a rando
   cover(A('5_05'), B('5_05'));
 });
 
-test('拟态物质 with 2 copies owned and none left in the pool gives nothing — never a same-bond operator; with copies left the 3rd still merges (GitHub #207)', () => {
-  // the report: an elite 溯光星源 (3 of the Ⅵ阶's 5 copies) and 2 normal ones — the pool is empty, the item text's 否则
-  // (a random same-bond operator) is only for fewer than 2 owned
+test('拟态物质 with 2 copies owned and none left in the pool makes the 3rd from nothing (→ a second elite), never a same-bond operator; the copies it returns never exceed what was taken', () => {
+  // GitHub #207's report: an elite 溯光星源 (3 of the Ⅵ阶's 5 copies) and 2 normal ones — the pool is empty. wjx instance
+  // (the owner's account of the game, 2026-10-08): the 3rd copy comes anyway, as 画卷's copy does (upstream: nothing)
   const cid = 'chess_char_6_16_a';
   const elite = DATA.chess[cid].goldenId;
-  const chessIn = (ps) => [...ps.board.values(), ...ps.hand, ...ps.temp].filter((p) => p && p.kind === 'chess').map((p) => p.id).sort();
+  const chessIn = (ps) => [...ps.board.values(), ...ps.hand, ...ps.temp].filter((p) => p && p.kind === 'chess');
   for (const item of [A('5_05'), B('5_05')]) {
     const { m, ps, equip } = setup({ seed: 9 });
     give(m, ps, elite, 'hand');
     const t = give(m, ps, cid, 'hand');
     give(m, ps, cid, 'hand');
     assert.equal(m.pool.left(cid), 0, 'elite 3 + 2 normal = the pool cap 5');
-    const before = chessIn(ps);
-    const got = spyGrants(ps);
     const warns = spyWarns(m);
     const it = giveItem(m, ps, item);
     assert.deepEqual(equip(it, t), OK, item);
-    assert.deepEqual(got, [], `${item}: nothing granted`);
-    assert.deepEqual(chessIn(ps), before, `${item}: no other operator, no second elite`);
+    const elites = chessIn(ps).filter((p) => p.id === elite);
+    assert.equal(elites.length, 2, `${item}: a second elite`);
+    assert.equal(chessIn(ps).length, 2, `${item}: no other operator`);
     assert.ok(!ps.find(it.uid), `${item}: consumed`);
-    // …and says why (GitHub #401, the owner's OK of 2026-10-09)
-    assert.deepEqual(warns, [{ msgid: '{who}：卡池中已没有{name}', who: '拟态物质', name: '溯光星源' }], `${item}: the toast`);
+    assert.equal(m.pool.left(cid), 0);
+    const made = elites.find((p) => p.poolCopies < 3);
+    assert.ok(made, 'the new elite holds only the copies the pool gave');
+    ps.returnCopies(made);
+    assert.equal(m.pool.left(cid), 2, 'selling it returns the 2 copies taken, not 3: the pool stays within its cap');
+    assert.deepEqual(warns, [], `${item}: a grant: no warn toast`);
   }
-  // 2 normal copies, no elite, the pool drained by other players: nothing either
+  // 2 normal copies, no elite, the pool drained by other players: the 3rd still comes
   {
     const { m, ps, equip } = setup({ seed: 9 });
     const t = give(m, ps, cid, 'hand');
     give(m, ps, cid, 'hand');
     m.pool.take(cid, m.pool.left(cid));
-    const got = spyGrants(ps);
     const warns = spyWarns(m);
     assert.deepEqual(equip(giveItem(m, ps, A('5_05')), t), OK);
-    assert.deepEqual(got, []);
-    assert.deepEqual(chessIn(ps), [cid, cid]);
-    assert.deepEqual(warns.map((w) => w.msgid), ['{who}：卡池中已没有{name}']);
+    assert.deepEqual(chessIn(ps).map((p) => p.id), [elite]);
+    assert.deepEqual(warns, [], 'a grant: no warn toast');
   }
-  // 2 normal copies with copies left: the 3rd merges into the elite
+  // 2 normal copies with copies left: the 3rd is taken from the pool
   {
     const { m, ps, equip } = setup({ seed: 9 });
     const t = give(m, ps, cid, 'hand');
@@ -998,7 +999,7 @@ test('拟态物质 with 2 copies owned and none left in the pool gives nothing �
     assert.equal(m.pool.left(cid), 3);
     const warns = spyWarns(m);
     assert.deepEqual(equip(giveItem(m, ps, A('5_05')), t), OK);
-    assert.deepEqual(chessIn(ps), [elite]);
+    assert.deepEqual(chessIn(ps).map((p) => p.id), [elite]);
     assert.deepEqual(warns, [], 'a grant: no warn toast');
     assert.equal(m.pool.left(cid), 2, 'the elite holds 3 copies');
   }
