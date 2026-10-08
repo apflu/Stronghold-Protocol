@@ -10,8 +10,9 @@
 // Refresh: 4 Hz while the board is live and its battle runs (a read of the numbers; the panel re-renders only when the
 // fingerprint changes — gameLogic/meter.js boardSignature), nothing while folded or after the battle ended.
 // Place: the left edge, between the team panel and the bottom-left corner buttons (measured: the team panel grows with
-// the players and a teammate's 前往查看 button, the corner wraps to two rows on narrow phones); folded it is a small
-// tab there. Popups (detail card, bond popup, emote wheel) open over it. Folded / tab: remembered per viewer
+// the players and a teammate's 前往查看 button, the corner wraps to two rows on narrow phones; a shop bar / scouting pill
+// that reaches into its column on a narrow phone is a lower bound too); folded it is a small tab there; with less than
+// MIN_OPEN_PX of room only the tab shows. Popups (detail card, bond popup, emote wheel) open over it. Folded / tab: remembered per viewer
 // (localStorage `sp.pref.damagePanel`, store.js loadPref / savePref — both guarded); short screens start folded.
 
 import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
@@ -32,6 +33,12 @@ export const METER_REFRESH_MS = 250;
 const PREF_KEY = 'damagePanel';
 /** Less room than this (px) between the team panel and the corner: only the tab is shown. */
 const MIN_OPEN_PX = 96;
+/** The open panel's right edge from the HUD's left (css .dmeter: .22rem + max(2rem, 156px)), px. */
+const panelRight = () => {
+  let rem = 100;
+  try { rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 100; } catch { /* default */ }
+  return 0.22 * rem + Math.max(2 * rem, 156);
+};
 
 const shortScreen = () => {
   try { return (globalThis.innerHeight || 1080) < 432; } catch { return false; }
@@ -153,7 +160,14 @@ export function DamagePanel({ target, refreshKey = '', owner = null, getBoard = 
       const tb = team ? team.getBoundingClientRect() : null;
       const cb = corner ? corner.getBoundingClientRect() : null;
       const top = Math.round(tb && tb.height > 0 ? tb.bottom - hb.top : 0);
-      const bottom = Math.round(cb && cb.height > 0 ? hb.bottom - cb.top : 0);
+      let bottom = cb && cb.height > 0 ? hb.bottom - cb.top : 0;
+      // a bottom bar that reaches into the panel's column (the shop bar / the scouting pill on a narrow phone): above it
+      const right = hb.left + Math.max(el.getBoundingClientRect().right - hb.left, panelRight());
+      for (const sel of ['.shopbar__row', '.shopbar-tab', '.gm__watching']) {
+        const r = hud.querySelector(sel)?.getBoundingClientRect();
+        if (r && r.height > 0 && r.left < right) bottom = Math.max(bottom, hb.bottom - r.top);
+      }
+      bottom = Math.round(bottom);
       setBox((cur) => (cur && cur.top === top && cur.bottom === bottom && cur.h === Math.round(hb.height) ? cur : { top, bottom, h: Math.round(hb.height) }));
     };
     place();
