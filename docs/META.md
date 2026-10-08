@@ -483,7 +483,7 @@ a promotion or `ctx.destroyPiece` returns) ends with the auto-merge (`acquireIte
 
 Built-ins (builtinMeta.js, overridable): 盟约之币 / 骑士储蓄罐 (random funds), 随身身份牌 (layers of the target's bonds),
 紧急调度券 (take shop chess), 精打细算玩偶 (+funds each round), 简易通讯机 (same-bond chess), 拟态物质 (with 2 copies
-owned the 3rd — nothing when the pool has none left, GitHub #207 —, else a same-bond chess), 见钱眼开玩偶
+owned the 3rd — made from nothing when the pool has none left (wjx instance, the owner's account of the game 2026-10-08; upstream GitHub #207 gives nothing) —, else a same-bond chess), 见钱眼开玩偶
 (+funds next round), 人事部文档 (cap 9), 博士投影 (elite now / at the next round start), 寻呼模块 / 信标 (pick-one
 offers; 信标 gifts the original chess — an elite stays an elite — to the teammate with the most members of its bonds next
 round, also when the sender was eliminated meanwhile; a failed grant waits for the next round start), 商业包装方案 (every
