@@ -249,7 +249,7 @@ test('SP_BOOST parsing: on = 4 coins and a 40% lucky first slot; "<funds>,<luck>
   assert.deepEqual(parseBoost('999,7'), { funds: 50, shopLuck: 1 });
 });
 
-test('轮回之终末 box: only the seats that ticked it get the coins (outside stats) and a lucky first slot', () => {
+test('轮回之终末 box: only the seats that ticked it get the coins (outside stats) and a lucky slot', () => {
   const h = makeMatch({ mode: 'coop', difficulty: 'ABYSS', humans: 2, bots: 0, fake: true, boost: '1', boostSeats: ['p_0'] }).start().toPrep(1);
   const m = h.m;
   const [on, off] = [h.ps('p_0'), h.ps('p_1')];
@@ -265,7 +265,7 @@ test('轮回之终末 box: only the seats that ticked it get the coins (outside 
   m.rngBoost = () => 0;
   on.rollShop();
   const chess = on.shop.slots.filter((s) => s && s.kind === 'chess');
-  assert.equal(m.gd.baseIdOf(chess[0].id), mine, 'the first slot: an own unmerged operator nobody else holds a pair of');
+  assert.equal(m.gd.baseIdOf(chess[0].id), mine, 'the lucky slot (rng 0: the first): an own unmerged operator nobody else holds a pair of');
   assert.equal(off._boostChessSlot(), null, 'no box, no lucky slot');
   m.rngBoost = () => 0.999;
   assert.equal(on._boostChessSlot(), null);
@@ -274,6 +274,38 @@ test('轮回之终末 box: only the seats that ticked it get the coins (outside 
   const plain = makeMatch({ mode: 'coop', humans: 1, fake: true, boost: null, boostSeats: ['p_0'] });
   assert.equal(plain.ps('p_0').boost, null, 'SP_BOOST off: the box does nothing');
   plain.m.dispose();
+});
+
+test('轮回之终末 box: the lucky slot is a random rerolled chess slot, not always the first; a frozen slot kept is never it', () => {
+  const h = makeMatch({ mode: 'coop', difficulty: 'ABYSS', humans: 2, bots: 0, fake: true, boost: '1', boostSeats: ['p_0'] }).start().toPrep(1);
+  const m = h.m;
+  const on = h.ps('p_0');
+  const [mine] = chessOfTier(1).filter((id) => m.pool.left(id) > 3);
+  for (const p of on.allChess()) on.sell(p.uid);
+  give(m, on, mine, 'hand');
+  /** the box's rng: the slot pick, then the luck check (0 < shopLuck), then 0 for the draw itself */
+  const seq = (...v) => { const q = [...v]; m.rngBoost = () => (q.length ? q.shift() : 0); };
+  const n = on.shop.slots.filter((s) => s && s.kind === 'chess').length;
+  assert.ok(n >= 3);
+  const seen = new Set();
+  for (const r of [0, 0.5, 0.99]) {
+    seq(r, 0);
+    on.rollShop();
+    const at = Math.floor(r * n);
+    const chess = on.shop.slots.slice(0, n);
+    assert.equal(m.gd.baseIdOf(chess[at].id), mine, `rng ${r}: the lucky draw is slot ${at}`);
+    seen.add(at);
+  }
+  assert.ok(seen.size >= 3, 'different positions');
+  // every slot but the last frozen and kept: the lucky slot can only be the one rerolled
+  seq(0, 0);
+  on.shop.slots.forEach((s, i) => { if (s && i < n - 1) s.frozen = true; });
+  const before = on.shop.slots.slice(0, n - 1).map((s) => s.id);
+  on.rollShop({ keepFrozen: true });
+  assert.deepEqual(on.shop.slots.slice(0, n - 1).map((s) => s.id), before, 'the frozen slots kept');
+  assert.equal(m.gd.baseIdOf(on.shop.slots[n - 1].id), mine, 'the lucky draw on the rerolled slot');
+  checkInvariants(m);
+  m.dispose();
 });
 
 test('轮回之终末: at the end of the last prep a boxed seat with no bond at 999 is eliminated; 999 or no box survives', () => {

@@ -60,13 +60,16 @@ export class PlayerEconomy {
     return Number.isFinite(p) ? Math.max(0, Math.round(p)) : slot.basePrice;
   }
 
-  /** @param {number|null} [i] the chess slot's index in a roll (the host's lucky slot is slot 0 only) */
-  _rollChessSlot(i = null) {
+  /**
+   * @param {number|null} [i] the chess slot's index in a roll (the AI assist's lucky slot is slot 0 only)
+   * @param {boolean} [boostSlot] this slot is the roll's 轮回之终末 slot (rollShop _boostSlotOf: a random rerolled one)
+   */
+  _rollChessSlot(i = null, boostSlot = false) {
     // the slotted 自选 pieces join the draw once the 调度中心 reaches their slot's level (player/diy.js diyRollEntries)
     const id = this.m.pool.roll(this.m.rngShop, { maxTier: this.shop.level, extra: this.diyRollEntries() });
     // the normal roll is always drawn first, so the shop rng stream (every player's rolls) is the same with or without
-    // the host's lucky slot (AI assist / 轮回之终末 box), which only the first chess slot of a roll takes
-    const lucky = i === 0 ? this._assistChessSlot() ?? this._boostChessSlot() : null;
+    // the host's lucky slot (AI assist: the first chess slot of a roll; 轮回之终末 box: one random rerolled slot)
+    const lucky = (i === 0 ? this._assistChessSlot() : null) ?? (boostSlot ? this._boostChessSlot() : null);
     if (lucky) return lucky;
     return id ? { kind: 'chess', id, basePrice: this.gd.chessPrice(id), frozen: false, sold: false } : null;
   }
@@ -93,13 +96,23 @@ export class PlayerEconomy {
   }
 
   /**
-   * SP_BOOST (轮回之终末 box): with probability boost.shopLuck the first chess slot of a roll is the lucky draw (the
-   * player's 自选 stock included), on its own rng stream (Match.rngBoost). null = keep the normal roll.
+   * SP_BOOST (轮回之终末 box): with probability boost.shopLuck the roll's boost slot is the lucky draw (the player's 自选
+   * stock included), on its own rng stream (Match.rngBoost). null = keep the normal roll.
    */
   _boostChessSlot() {
     const b = this.boost;
     if (!b || !(b.shopLuck > 0) || this.m.rngBoost() >= b.shopLuck) return null;
     return this._luckyChessSlot(this.m.rngBoost, this.diyRollEntries());
+  }
+
+  /**
+   * The 轮回之终末 slot of a roll: one of the chess slots being rerolled (frozen ones kept are not), picked on the box's
+   * own rng stream — any position, not always the first (owner's request 2026-10-08). -1 without the box or a slot.
+   * @param {number[]} rerolled indices of the chess slots this roll draws
+   */
+  _boostSlotOf(rerolled) {
+    if (!this.boost || !(this.boost.shopLuck > 0) || !rerolled.length) return -1;
+    return rerolled[Math.floor(this.m.rngBoost() * rerolled.length)];
   }
 
   _rollItemSlot() {
@@ -120,7 +133,9 @@ export class PlayerEconomy {
     const keep = (s, kind) => (keepFrozen && s && s.kind === kind && !s.sold && s.frozen ? { ...s } : null);
     // frozen slots keep their position; sold / empty / unfrozen positions are rerolled
     const slots = [];
-    for (let i = 0; i < nChess; i++) slots.push(keep(oldChess[i], 'chess') ?? this._rollChessSlot(i));
+    const kept = Array.from({ length: nChess }, (_, i) => keep(oldChess[i], 'chess'));
+    const boostAt = this._boostSlotOf(kept.flatMap((s, i) => (s ? [] : [i])));
+    for (let i = 0; i < nChess; i++) slots.push(kept[i] ?? this._rollChessSlot(i, i === boostAt));
     for (let i = 0; i < nItem; i++) slots.push(keep(oldItems[i], 'item') ?? this._rollItemSlot());
     this.shop.slots = slots;
     this.shop.layout = { chess: nChess, item: nItem };
