@@ -58,6 +58,16 @@
 //   battleRunner.ownerOps(ownerId, fieldId?) → [{ kind: 'op', ownerId, defId, items?, standInFor? }] that player's
 //                           operators in the battle on screen with their equipment (a teammate's bond popup: the members in
 //                           play, DESIGN §20.15, 变形同构体 wearers included; a 补位 stand-in names the replaced charId) | []
+//   battleRunner.damageBoard(ownerId?, fieldId?) → the damage meter of the battle on screen (the per-round 伤害统计 panel,
+//                           ui/damagePanel.js): { battleId, fieldId, kind, round, own, watch, done, live, ownerIds,
+//                           units: [{ id, uid, defId, kind, ownerId, name, dmg, taken, heal, standInFor?, diy?, summons }],
+//                           totals: { dmg, taken, heal } } — `ownerId`'s units (all players' without one), numbers rounded
+//                           for display, a summon's folded into its summoner's row (battle/meter.js). Read-only like
+//                           unitStats: it reads the sim's counters (`unit.stats`) and nothing else. After the battles are
+//                           dropped (clear(): the next prep) the final boards of the battles of that round stay readable
+//                           (`live: false`) until the first battle of the next round is shown — in prep the panel still
+//                           shows the last round. null when there is nothing (no battle simulated here yet, server-run
+//                           combat, `fieldId` / `ownerId` not in it).
 //
 // createBattleRunner(deps) builds an instance with injectable net / store / clock / frame scheduler / sim loader
 // (test/match/runner.test.js drives it under Node).
@@ -66,6 +76,7 @@ import { net as appNet } from '../net.js';
 import { store as appStore } from '../store.js';
 import { unitStatsEntry, fxForm } from '../../../shared/protocol.js';
 import { spectateEffects } from './observe.js';
+import { meterRows } from './meter.js';
 
 const TICK = 1 / 30;
 /** Fast-forward budget per frame (ticks) when far behind. */
@@ -198,6 +209,12 @@ export function createBattleRunner(deps) {
   /** a normal field's leak count (or a battle's bond layers) changed since the last publishState() */
   let leaksDirty = false;
   const stats = { ticks: 0, stepMs: 0, maxFrameMs: 0, catchups: 0, errors: 0, battles: 0, frames: 0 };
+  /**
+   * The final damage boards of the battles dropped by the last clear() (damageBoard after the round: the panel shows the
+   * last round in prep), the one that was on screen first; null once a battle of the next round is shown.
+   * @type {any[]|null}
+   */
+  let kept = null;
   /** Hidden-tab backlog tuple → the game time it was drained at (emitFrame batches the backlog by it). */
   const heldAt = new WeakMap();
 
@@ -211,6 +228,23 @@ export function createBattleRunner(deps) {
       simP = loadSim().catch((err) => { simP = null; throw err; });
     }
     return simP;
+  }
+
+  /**
+   * An entry's damage board (battle/meter.js meterRows over its Battle; read-only): `ownerId`'s units, or every player's.
+   * `live`: the battle is still being simulated here (not a kept board of a dropped round).
+   */
+  function boardOf(e, ownerId = null, live = true) {
+    let rows;
+    try { rows = meterRows(e.battle, ownerId); } catch { rows = { units: [], totals: { dmg: 0, taken: 0, heal: 0 } }; }
+    const ownerIds = [];
+    for (const u of Array.isArray(e.battle.allyUnits) ? e.battle.allyUnits : []) {
+      if (u && u.kind === 'op' && typeof u.ownerId === 'string' && !ownerIds.includes(u.ownerId)) ownerIds.push(u.ownerId);
+    }
+    return {
+      battleId: e.battleId, fieldId: e.fieldId, kind: e.kind, round: e.round, own: !!e.own, watch: !!e.watch,
+      done: !!e.battle.finished, live, ownerIds, units: rows.units, totals: rows.totals,
+    };
   }
 
   /** Counted leaks so far of every normal field simulated here: { [fieldId]: n } (user playtest #3 item 2). */
@@ -635,6 +669,7 @@ export function createBattleRunner(deps) {
     const e = {
       battleId: msg.battleId, fieldId: msg.fieldId || msg.spec.fieldId, kind: msg.kind || msg.spec.kind, spec: msg.spec, sim, battle,
       authoritative: !!msg.authoritative, watch: !!msg.watch, own: !msg.watch, speed,
+      round: Number.isInteger(msg.spec.round) ? msg.spec.round : null,
       members: (msg.spec.players || []).map((p) => p && p.playerId).filter(Boolean),
       t0: clock() - ((Number(msg.elapsed) || 0) / speed) * 1000, lastProgressAt: -Infinity, done: false, resultSent: false,
       result: null, delivery: null,
@@ -669,6 +704,8 @@ export function createBattleRunner(deps) {
     entries.set(e.battleId, e);
     evict();
     loading = null;
+    // the next round's first battle is on screen: the last round's kept damage boards go
+    kept = null;
     noteLeaks(e);
     show(e);
     if (battle.finished) finished(e);
@@ -709,6 +746,12 @@ export function createBattleRunner(deps) {
     for (const e of entries.values()) {
       // never drop an unreported authoritative result (the round already moved on: the server has its own)
       if (e.authoritative && !e.resultSent && !e.battle.finished) { try { e.battle.forceEnd('forced'); } catch { /* ignore */ } }
+    }
+    // the damage meter keeps the round's final numbers for the prep that follows (the board that was on screen first);
+    // a clear with nothing to drop (a second phase change) keeps what an earlier one kept
+    if (entries.size) {
+      const order = [...entries.values()].sort((a, b) => (a === cur ? -1 : b === cur ? 1 : 0));
+      kept = order.map((e) => boardOf(e, null, false));
     }
     entries.clear();
     cur = null;
@@ -801,6 +844,31 @@ export function createBattleRunner(deps) {
           const si = u.def && typeof u.def.standInFor === 'string' ? u.def.standInFor : null;
           return si ? { ...o, standInFor: si } : o;
         });
+    },
+    /**
+     * The damage meter of the battle on screen — or, between rounds, the last round's kept final board — for `ownerId`
+     * (every player without one) on `fieldId` (any without one). See the header. Read-only.
+     * @param {string|null} [ownerId] @param {string|null} [fieldId]
+     */
+    damageBoard(ownerId = null, fieldId = null) {
+      const has = (b) => (fieldId == null || b.fieldId === fieldId) && (ownerId == null || b.ownerIds.includes(ownerId));
+      const filter = (b) => {
+        if (ownerId == null) return b;
+        const units = b.units.filter((u) => u.ownerId === ownerId);
+        const totals = { dmg: 0, taken: 0, heal: 0 };
+        for (const u of units) { totals.dmg += u.dmg; totals.taken += u.taken; totals.heal += u.heal; }
+        return { ...b, units, totals };
+      };
+      const e = cur;
+      if (e) {
+        if (fieldId != null && e.fieldId !== fieldId) return null;
+        const b = boardOf(e, ownerId, true);
+        if (ownerId != null && !b.ownerIds.includes(ownerId)) return null;
+        return b;
+      }
+      // between rounds (or while the next round's battle is being prepared): the last round's final numbers
+      const k = Array.isArray(kept) ? kept.find(has) : null;
+      return k ? filter(k) : null;
     },
     /** Re-show the current battle (the game screen remounted). */
     reshow() { if (cur) show(cur); },
