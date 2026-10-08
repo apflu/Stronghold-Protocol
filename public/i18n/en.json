@@ -1089,5 +1089,13 @@
   "选择「{name}」的朝向": "Choose {name}'s facing",
   "选择朝向": "Choose a facing",
   "朝向：{dir}": "Facing: {dir}",
-  "开发版 · 不稳定，请勿用于公开服务器": "Development build · unstable, not for public servers"
+  "开发版 · 不稳定，请勿用于公开服务器": "Development build · unstable, not for public servers",
+  "伤害": "Damage",
+  "承伤": "Taken",
+  "伤害统计": "Damage Meter",
+  "合计": "Total",
+  "含召唤物 {n}": "incl. summons {n}",
+  "展开伤害统计": "Show the damage meter",
+  "收起伤害统计": "Hide the damage meter",
+  "暂无数据": "No data yet"
 }

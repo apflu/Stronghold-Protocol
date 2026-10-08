@@ -81,6 +81,8 @@ import { Ticker } from '../ui/ticker.js';
 import { EmoteWheel } from '../ui/emotes.js';
 import { EffectsList } from '../ui/effectsList.js';
 import { CombatHud } from '../ui/combatHud.js';
+import { DamagePanel } from '../ui/damagePanel.js';
+import { meterTarget } from '../ui/gameLogic/meter.js';
 import { SettingsModal, settingsStore } from '../ui/settings.js';
 import { ExitModal, AwayOverlay, awayStore } from '../ui/matchChrome.js';
 import { openGuide } from '../ui/guide.js';
@@ -1258,6 +1260,10 @@ function MatchScreen() {
   const bondPop = popupView({ open: bondOpen, pub, priv, myId, field, units: popOps, live: liveLayers });
   const openBond = (id, ownerId, from) => { setBondOpen((b) => toggleBond(b, id, ownerId, from)); audio.sfx('click', { volume: 0.4 }); };
   const watchingNow = combat ? (watching || field?.fieldId || home) : watching;
+  // the per-round damage meter (ui/damagePanel.js): the strip's player in the battle on screen; between rounds the
+  // runner's kept final board of the last round (client-side combat only — server-run combat has no local numbers)
+  const meter = meterTarget({ cc, combat, settle: settleMode, stripOwnerId: strip.ownerId, battleFieldId: battleState?.fieldId || null, myId });
+  const meterKey = battleState ? `${battleState.battleId}|${battleState.fieldId}|${battleState.done ? 1 : 0}|${battleState.loading ? 1 : 0}` : `-|${phase}|${pub?.round ?? ''}`;
   const shopOpen = showShop && !collapsed;
   const ufShown = !!(selEntry && editable && !facing && !drag && showPrep && ufGeo);
   // the temp overflow row holds pieces (user playtest #3 item 3): framed and labelled on the own prep board
@@ -1352,6 +1358,8 @@ function MatchScreen() {
       <${TeamPanel} pub=${pub} myId=${myId} watching=${watchingNow} bubbles=${bubbles} onWatch=${watchPlayer} cap=${gd.config?.lpCapPerRound ?? 10} uniteLocal=${uniteLocal}
         self=${Number.isFinite(priv?.lp) ? { lp: priv.lp, pending: liveLpNow.pending, unite: liveLpNow.unite, left: liveLpNow.left } : null}
         observe=${cc ? { canObserve: (p) => observeTarget(p, pub, myId, { observing: watchingOther, ownDone: localDone }), observing: watchingOther, onBack: backHome } : null} />
+
+      <${DamagePanel} target=${meter} refreshKey=${meterKey} owner=${strip.self ? null : strip.name} />
 
       <div class="gm__effects"><${EffectsList} effects=${watchingOther && field ? (field.effects ?? null) : priv?.effects} /></div>
 

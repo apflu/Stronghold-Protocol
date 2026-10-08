@@ -340,6 +340,71 @@
 .pavatar__x, .pavatar__door { position: absolute; inset: 0; display: grid; place-items: center; color: var(--red-premium); }
 .pavatar__x .icon, .pavatar__door .icon { width: 60%; height: 60%; filter: drop-shadow(0 0 4px #000); }
 
+/* ---- damage meter (ui/damagePanel.js): per-round 伤害 / 承伤 / 治疗 per operator ----------------------------------------
+   The left edge between the team panel and the corner buttons: the component measures both (--dm-top / --dm-bottom, px
+   in the HUD layer) and falls back to the space under a 4-player team panel. Its width stays left of the docked detail
+   card / bond popup (left 2.3rem) on desktop; on a phone (1rem = 40 px) it keeps 156 px and those popups open over it. */
+.dmeter {
+  --dm-top: 5.9rem; --dm-bottom: 1rem;
+  position: absolute; left: .22rem; top: calc(var(--dm-top) + .12rem); z-index: 1;
+  max-height: calc(100% - var(--dm-top) - var(--dm-bottom) - .24rem);
+  display: flex; flex-direction: column; pointer-events: none;
+}
+.dmeter > * { pointer-events: auto; }
+.dmeter[hidden] { display: none; }
+.dmeter__toggle {
+  display: inline-flex; align-items: center; gap: .06rem; min-height: max(.44rem, 30px); padding: 0 .12rem;
+  background: rgba(8, 11, 10, .85); border: 1px solid var(--line-2); border-left: 3px solid var(--mint-500);
+  color: var(--text-md); font-size: max(.15rem, 11px); font-weight: 700; letter-spacing: .06em;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+.dmeter__toggle .icon { width: max(.2rem, 14px); height: max(.2rem, 14px); color: var(--mint-500); }
+.dmeter__toggle:hover:not(:disabled) { color: var(--mint-400); border-color: var(--mint-700); }
+.dmeter__toggle:disabled { opacity: .5; cursor: default; }
+.dmeter__toggle:focus-visible, .dmeter__tab:focus-visible, .dmeter__fold:focus-visible { outline: 2px solid var(--mint-500); outline-offset: 1px; }
+.dmeter__panel {
+  display: flex; flex-direction: column; gap: .06rem; min-height: 0; width: max(2rem, 156px); padding: .08rem .1rem .1rem;
+  background: rgba(8, 11, 10, .82); border: 1px solid var(--line-2); border-left: 3px solid var(--mint-500);
+  font-size: max(.14rem, 10px); color: var(--text-md); animation: pop-in var(--t-med) var(--ease-out);
+}
+.dmeter__head { display: flex; align-items: center; gap: .08rem; min-height: max(.3rem, 20px); }
+.dmeter__round { flex: 1; min-width: 0; font-size: max(.15rem, 11px); font-weight: 700; color: var(--text-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dmeter__round b { color: var(--mint-400); }
+.dmeter__live { display: inline-flex; align-items: center; gap: .04rem; font-size: max(.12rem, 9px); color: var(--mint-400); letter-spacing: .06em; }
+.dmeter__live i { width: max(.07rem, 5px); height: max(.07rem, 5px); border-radius: 50%; background: var(--mint-glow); animation: dm-live 1.2s var(--ease-in-out) infinite; }
+@keyframes dm-live { 50% { opacity: .25; } }
+.dmeter__fold {
+  flex: none; display: grid; place-items: center; width: max(.3rem, 24px); height: max(.3rem, 24px); padding: 0;
+  background: none; border: 1px solid var(--line-2); color: var(--text-lo); font-size: max(.18rem, 13px); line-height: 1;
+}
+.dmeter__fold:hover { color: var(--mint-400); border-color: var(--mint-700); }
+.dmeter__owner { display: flex; align-items: center; gap: .05rem; color: var(--amber); font-size: max(.13rem, 10px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dmeter__owner .icon { width: max(.16rem, 12px); height: max(.16rem, 12px); flex: none; }
+.dmeter__tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+.dmeter__tab {
+  min-height: max(.28rem, 22px); padding: 0 .04rem; background: rgba(255, 255, 255, .03); border: 1px solid var(--line);
+  color: var(--text-lo); font-size: max(.13rem, 10px); font-weight: 700; white-space: nowrap;
+}
+.dmeter__tab:hover { color: var(--text-hi); }
+.dmeter__tab.is-on { background: var(--mint-a20); border-color: var(--mint-700); color: var(--mint-400); }
+.dmeter__total { display: flex; align-items: baseline; justify-content: space-between; gap: .06rem; color: var(--text-lo); font-size: max(.12rem, 9px); }
+.dmeter__total b { color: var(--text-hi); font-size: max(.16rem, 11px); }
+.dmeter__rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .05rem; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.dmeter__row { display: flex; align-items: center; gap: .06rem; min-width: 0; }
+.dmeter__row .uthumb { --ut: max(.34rem, 22px); }
+.dmeter__glyph { flex: none; width: max(.34rem, 22px); height: max(.34rem, 22px); display: grid; place-items: center; background: #111513; border: 1px solid var(--line-2); font-weight: 900; color: var(--text-md); }
+.dmeter__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dmeter__line { display: flex; align-items: baseline; gap: .05rem; min-width: 0; line-height: 1.2; }
+.dmeter__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-md); }
+.dmeter__val { color: var(--text-hi); font-size: max(.14rem, 10px); }
+.dmeter__pct { min-width: 3.2em; text-align: right; color: var(--text-lo); font-size: max(.11rem, 9px); }
+.dmeter__bar { height: max(.04rem, 3px); background: rgba(255, 255, 255, .06); overflow: hidden; }
+.dmeter__bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--mint-700), var(--mint-400)); transition: width 240ms var(--ease-out); }
+.dmeter__sub { font-size: max(.11rem, 9px); color: var(--text-lo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dmeter__empty { padding: .06rem 0; color: var(--text-dim); font-size: max(.12rem, 9px); }
+@media (prefers-reduced-motion: reduce) { .dmeter__live i, .dmeter__panel { animation: none; } .dmeter__bar i { transition: none; } }
+.sp-reduced-motion .dmeter__live i, .sp-reduced-motion .dmeter__panel { animation: none; }
+
 /* ---- effects ---------------------------------------------------------------------------------------------- */
 .gm__effects { position: absolute; right: .3rem; top: 2.4rem; }
 /* 准备就绪 refused (the temp row holds pieces): its reason shows under the button and pushes the ready count down —
