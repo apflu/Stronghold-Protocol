@@ -10,8 +10,8 @@
 // 成员" is she herself, and 毋畏遗忘's "其他Ave Mujica成员的攻击范围…视作攻击范围的延伸" never applies.
 // - Trait (领主) "可以进行远程攻击，但此时攻击力降低至80%": the lord profile (professions.js: ×atk_scale unless the target stands
 //   on her tile / the tile in front or she blocks it), range 3-12, hits air units, blocks 2. LOR-Y adds "攻击范围内存在2名
-//   及以上敌人时攻击速度+12" (trait attack_speed; the count from the module text, else CROWD_CNT): ASPD + while that many
-//   targetable enemies stand on her current range.
+//   及以上敌人时攻击速度+12" (trait attack_speed): the engine's trait rule applies it since 0.2.2 (content/traitMods.js,
+//   the same line as 圣约送葬人 / 隐德来希 REA-Y), so the kit leaves it alone.
 // - T1 颂乐音符 "可以持续攻击且攻击会演奏追踪敌人的音符，音符飘出攻击范围一段时间后消失。每存在一个音符，Ave Mujica成员无视敌人
 //   N%的防御力和M%法术抗性（最多叠加至max_cnt层）" (bb def_penetrate_ratio / magic_resist_penetrate_ratio / max_cnt / delay):
 //   every damage instance of hers is a note (her attack hits, S1's and S3's notes, the Fever double hits); a note exists
@@ -48,8 +48,9 @@
 //   Fever结束后退场": with S3 picked, a fatal hit during Fever leaves her at 1 HP; when Fever ends she leaves the field as a
 //   knock-out (a forced exit with the death animation, as 史尔特尔's 余烬). S3 outlasts Fever (25 s ≥ 20 s), so no extension.
 
-import { num, talentBb, traitBb, skillRec, up, enemiesInGrid, installAura, toggleBuff } from '../shared/tier1.js';
+import { num, talentBb, skillRec, up, enemiesInGrid, installAura } from '../shared/tier1.js';
 import { COLS } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_oblvns_1';
 const S2 = 'skchr_oblvns_2';
@@ -59,8 +60,6 @@ export const NOTE_HOLD = 0.5;
 /** Fever gauge size and Fever length (s) [ASSUMED: the old wjx kit's numbers]. */
 export const FEVER_MAX = 450;
 export const FEVER_TIME = 20;
-/** LOR-Y "攻击范围内存在2名及以上敌人" when the text cannot be read. */
-const CROWD_CNT = 2;
 /** S3's fallback range 3-21 when a record carries none. */
 const R3_21 = Object.freeze([[2, 0], [2, 1], [1, 0], [1, 1], [1, 2], [1, 3], [0, 0], [0, 1], [0, 2], [0, 3], [-1, 0], [-1, 1], [-1, 2], [-1, 3], [-2, 0], [-2, 1]]);
 const TONE_KEY = 'skill:oblvns:tone';
@@ -69,13 +68,12 @@ const NOTE_TAG = 'oblvns:note';
 const bbOf = (chess, id) => skillRec(chess, id)?.bb ?? {};
 const kindOf = (rec) => (num(rec?.maxChargeTime, 1) > 1 ? 'charges' : 'instant');
 const feverOn = (battle, unit) => (unit.mem.oblvnsFeverUntil ?? -Infinity) > battle.time;
-const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const dist = (a, b) => hypot(a.x - b.x, a.y - b.y);
 
 export default {
   char_4182_oblvns: (bb, chess) => {
     const t0 = talentBb(chess, 0), t1 = talentBb(chess, 1);
     const t0Rec = (chess?.talents ?? []).find((t) => t && t.index === 0);
-    const tb = traitBb(chess);
     const b1 = bbOf(chess, S1), b2 = bbOf(chess, S2), b3 = bbOf(chess, S3);
     const grid3 = skillRec(chess, S3)?.rangeGrid ?? R3_21;
     const selected = chess?.skill?.skillId ?? null;
@@ -87,8 +85,6 @@ export default {
     const liftRanged = /远程攻击不再降低攻击力/.test(String(t0Rec?.desc ?? ''));
     const feverCnt = num(t1.cnt);
     const auraAspd = num(t1.enable, 1) ? num(t1.attack_speed) : 0;
-    const crowdAspd = num(tb.attack_speed);
-    const crowdCnt = num(+(/存在(\d+)名及以上敌人/.exec(String(chess?.trait?.moduleDesc ?? ''))?.[1]), CROWD_CNT) || CROWD_CNT;
     const s1Scales = ['atk_scale', 'atk_scale_2', 'atk_scale_3', 'atk_scale_4', 'atk_scale_5', 'atk_scale_6', 'atk_scale_7', 'atk_scale_8']
       .map((k) => num(b1[k])).filter((v) => v > 0);
     const s3Scale = num(b3['attack@atk_scale'], 1);
@@ -193,8 +189,6 @@ export default {
             if (unit.alive && unit.deployed && unit.deploySeq === seq) battle.retreat(unit, { reason: 'retreat', dying: true });
           }, { owner: unit });
         }, { owner: unit, priority: 10 });
-        // LOR-Y trait: ASPD + while `crowdCnt` enemies stand on her range
-        if (crowdAspd) toggleBuff(battle, unit, 'trait:oblvns:crowd', () => enemiesInGrid(battle, unit, null).length >= crowdCnt, { aspd: crowdAspd });
 
         if (selected === S1) { // Fever: every attack plays the eight notes
           battle.on('attack', (c) => { if (c.attacker === unit && up(unit) && feverOn(battle, unit)) burst(battle, unit); }, { owner: unit });

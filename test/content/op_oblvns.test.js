@@ -125,7 +125,7 @@ test('毋畏遗忘: Fever +cnt per damage dealt to an enemy; the operators in he
   assert.ok(h.runUntil(() => from(h, u).length >= 5, 30));
   h.run(0);
   assert.equal(u.mem.oblvnsFever, from(h, u).length * t1.cnt, 'Fever +cnt per damage instance');
-  assert.deepEqual([t1.cnt, t1.attack_speed], [3, 12]);
+  assert.deepEqual([t1.cnt, t1.attack_speed], [3, 16], '12 + 4 from her full potential (0.2.2: 潜能 6 by default)');
   done(h);
 });
 
@@ -250,7 +250,7 @@ test('S3 in Fever: a fatal hit leaves her at 1 HP; she leaves the field when Fev
   done(h);
 });
 
-test('LOR-Y trait: ASPD +attack_speed while two or more enemies stand on her range', () => {
+test('LOR-Y trait: ASPD +attack_speed while two or more enemies stand on her range — the engine\'s trait rule (traitMods.js, since 0.2.2), not the kit', () => {
   const tb = modOf(5).traitOverride.bb;
   assert.equal(tb.attack_speed, 12);
   const { h, u } = field({ tier: 5, elite: true, mod: LORY, skill: 0 });
@@ -258,11 +258,11 @@ test('LOR-Y trait: ASPD +attack_speed while two or more enemies stand on her ran
   u.skill.charges = 0;
   h.spawn('enemy_dummy', { pos: [10, 7] });
   h.run(0.2);
-  assert.equal(u.findBuff('trait:oblvns:crowd'), null, 'one enemy: no bonus');
+  assert.equal(u.findBuff('trait:attack_speed'), null, 'one enemy: no bonus');
   const base = u.s.aspd;
   h.spawn('enemy_dummy', { pos: [10, 8] });
   h.run(0.2);
-  assert.ok(u.findBuff('trait:oblvns:crowd'), 'two enemies');
-  assert.equal(u.s.aspd, base + tb.attack_speed);
+  assert.ok(u.findBuff('trait:attack_speed'), 'two enemies');
+  assert.equal(u.s.aspd, base + tb.attack_speed, 'once, not twice');
   done(h);
 });

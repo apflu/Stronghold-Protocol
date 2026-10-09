@@ -411,6 +411,8 @@ test('覆盖锁定（补位 / 自选）: 每个补位干员和每个自选组合
   }
   assert.ok(tally.standIn > 100, `every stand-in was scanned (${tally.standIn})`);
   assert.ok(tally.diy > 1000, `every 自选 combination was scanned (${tally.diy})`);
-  assert.deepEqual(applied, [], 'no stand-in or 自选 pick gains the engine rule');
-  assert.deepEqual(Object.keys(reasons).sort(), ['kit'], 'every line they carry is a kit-owned shape (no unknown, no other mode)');
+  // wjx: 丰川祥子 (DIY_INCLUDED_COLLAB) is the one 自选 pick the engine rule takes — LOR-Y is REA-Y's very line
+  // (「攻击范围内存在2名及以上敌人时攻击速度+12」), and her kit (op-oblvns.js) leaves it to the engine
+  assert.ok(applied.length > 0 && applied.every((t) => /^diy [^|]+\|char_4182_oblvns\|\d\|uniequip_002_oblvns$/.test(t)), `only 丰川祥子 LOR-Y gains the engine rule: ${applied.filter((t) => !t.includes('oblvns'))}`);
+  assert.deepEqual(Object.keys(reasons).sort(), ['kit', 'ok'], 'every other line they carry is a kit-owned shape (no unknown, no other mode)');
 });
