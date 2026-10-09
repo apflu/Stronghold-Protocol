@@ -276,6 +276,7 @@ describe('connection banner class (replaces CSS :has())', () => {
     assert.equal(bannerVisible({ status: 'reconnecting', everOnline: true }, true, false, true), true);
     assert.equal(bannerVisible({ status: 'connecting', everOnline: false }, true, false), false, 'first connect is silent');
     assert.equal(bannerVisible({ status: 'closed' }, false, false), false, 'not before the title');
+    assert.equal(bannerVisible({ status: 'online' }, true, false, false, true), true, 'part of the battle sim did not load (wjx)');
   });
 });
 

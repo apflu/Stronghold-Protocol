@@ -7,10 +7,13 @@
 // Parts are loaded with guarded dynamic imports and run in isolation: one failing part never disables the other
 // (the first error is re-thrown afterwards so content/index.js records it in battle.errors / the server log).
 
+import { noteLoadFailure } from './loadFailures.js';
+
 async function load(path) {
   try {
     return await import(path);
   } catch (e) {
+    noteLoadFailure(`content/${path.replace(/^\.\//, '')}`);
     console.error(`[content] failed to load ${path}: ${e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e}`);
     return {};
   }
