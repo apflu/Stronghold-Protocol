@@ -120,6 +120,8 @@ export class MatchReports {
       if (resultDigest(server).hash !== resultDigest(result).hash) {
         this.verifyStats.mismatches++;
         this.log.warn?.(`[match ${this.roomCode}] ${f.fieldId}: client result differs from the server's simulation`);
+        const brief = (r) => Object.fromEntries(Object.entries(r.perPlayer || {}).map(([pid, x]) => [pid, { killed: x.killed, total: x.total, damage: Math.round(Number(x.damageDealt) || 0) }]));
+        try { this.eventLog?.('verify', { fieldId: f.fieldId, battleId: f.battleId, from: f.authority, client: brief(result), server: brief(server) }); } catch { /* logging never reaches the game */ }
         return server;
       }
       return null;

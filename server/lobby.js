@@ -279,7 +279,7 @@ export class Lobby {
    * @param {{ resumed: boolean, repeat: boolean }} info
    */
   onHello(session, { resumed, repeat }) {
-    if (!repeat && eventLog.enabled) eventLog.write({ type: 'hello', pid: session.playerId, player: session.name, addr: session.addr, resumed: !!resumed, room: session.roomCode ?? null });
+    if (!repeat && eventLog.enabled) eventLog.write({ type: 'hello', pid: session.playerId, player: session.name, addr: session.addr, ua: session.ua || undefined, resumed: !!resumed, room: session.roomCode ?? null });
     if (!resumed && !repeat) return;
     const room = this.roomOf(session);
     if (!room) {

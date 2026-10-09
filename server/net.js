@@ -560,6 +560,8 @@ export class Network {
     const conn = new Connection(ws, clientAddress(req, this.opts.trustProxy), this.now(), this.opts);
     /** the invite this socket was admitted under (server/access.js; set by server/http/access.js on the upgrade request) */
     conn.access = req && req.spAccess ? req.spAccess : null;
+    /** the browser's User-Agent (event log only: which client simulated a field) */
+    conn.ua = req && req.headers && typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'].slice(0, 200) : '';
     this.conns.set(ws, conn);
     if (conn.key) this.connsPerKey.set(conn.key, (this.connsPerKey.get(conn.key) || 0) + 1);
     ws.on('message', (data, isBinary) => {
@@ -671,6 +673,7 @@ export class Network {
     session.access = conn.access || null;
     session.lastSeen = now;
     session.addr = conn.ip;
+    session.ua = conn.ua || '';
     session.limitKey = conn.key;
 
     let extra = null;

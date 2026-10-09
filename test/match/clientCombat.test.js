@@ -362,9 +362,11 @@ test('SP_VERIFY=all: an accepted but wrong client result is replaced by the serv
   const run = (verify) => {
     const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', humans: 1, bots: 1, seed: 9112, captureFrames: false, clientCombat: true, verify, perPlayer: { p_0: { tamper } } });
     const m = h.m;
+    const logged = [];
+    m.eventLog = (type, data) => { if (type === 'verify') logged.push(data); };
     m.start();
     h.drive(() => h.ended != null || ((m.phase === PHASE.UNITE || m.phase === PHASE.SETTLE) && m.round === 1), { band: 'band_bldsk' });
-    const s = { ...m.verifyStats, leaks: m.lastResults.get('p_0').leaked.length };
+    const s = { ...m.verifyStats, leaks: m.lastResults.get('p_0').leaked.length, logged };
     m.dispose();
     return s;
   };
@@ -375,6 +377,12 @@ test('SP_VERIFY=all: an accepted but wrong client result is replaced by the serv
   assert.equal(all.mismatches, 1, 'the forged perfect round is caught');
   assert.equal(off.leaks, 0, 'without verification the forged result stands');
   assert.ok(all.leaks > 0, `the server's leaks count (${all.leaks})`);
+  // wjx: the mismatch goes to the event log with who reported it and both outcomes
+  assert.equal(all.logged.length, 1);
+  const v = all.logged[0];
+  assert.equal(v.from, 'p_0');
+  assert.equal(v.client.p_0.killed, v.client.p_0.total, 'the forged perfect round');
+  assert.ok(v.server.p_0.killed < v.server.p_0.total, 'the server\'s own run');
 });
 
 test('LocalBossPool (client) and CreditPool (server takeover) keep the shared pool consistent', () => {
