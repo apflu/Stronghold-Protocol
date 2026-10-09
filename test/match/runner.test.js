@@ -28,7 +28,7 @@ function fakeNet() {
   return n;
 }
 
-function rig({ hidden = false } = {}) {
+function rig({ hidden = false, loadSim = null } = {}) {
   let t = 1000;
   const frames = [];
   const intervals = [];
@@ -42,7 +42,7 @@ function rig({ hidden = false } = {}) {
     caf: () => {},
     setInterval: (fn) => { intervals.push(fn); return intervals.length; },
     clearInterval: () => {},
-    loadSim: async () => ({ spec: specMod, ds: DS }),
+    loadSim: loadSim ?? (async () => ({ spec: specMod, ds: DS })),
     logger: { error() {}, warn() {}, info() {}, debug() {} },
   });
   const feed = { snaps: [], evs: [], fields: [] };
@@ -466,4 +466,28 @@ test('live unit stats (user playtest #4 item 7): unitStats(id) reads the battle 
   assert.equal(r.runner.unitStats(ally.id), null, 'nothing on screen after the battles were dropped');
   assert.equal(r.runner.unitIdOf(ally.uid, ally.ownerId), null);
   r.runner.dispose();
+});
+
+test('wjx: a sim whose content modules did not all load runs no battle and asks for a reload (ui.simBroken)', async () => {
+  const start = realStart();
+  let calls = 0;
+  const r = rig({ loadSim: async () => { calls++; const e = new Error('simulation content unavailable: content/bonds/core.js'); e.code = 'SIM_CONTENT'; throw e; } });
+  assert.equal(r.store.get().ui.simBroken, false);
+  r.net.emit('b.start', start);
+  await r.settle();
+  r.advance(5000);
+  assert.equal(calls, 1);
+  assert.equal(r.store.get().ui.simBroken, true, 'the banner asks for a reload');
+  assert.equal(r.feed.fields.length, 0, 'nothing simulated here');
+  assert.equal(r.net.sent.filter((m) => m.t === 'b.result' || m.t === 'b.progress').length, 0, 'no report: the server takes the field over');
+  // any other load failure (a data file that did not arrive) stays retryable and shows no banner
+  const r2 = rig({ loadSim: async () => { throw new Error('simulation data unavailable: chess'); } });
+  r2.net.emit('b.start', start);
+  await r2.settle();
+  assert.equal(r2.store.get().ui.simBroken, false);
+});
+
+test('wjx: every content module loads under Node (contentLoadFailures is empty)', async () => {
+  const content = await import('../../server/sim/content/index.js');
+  assert.deepEqual(content.contentLoadFailures(), []);
 });

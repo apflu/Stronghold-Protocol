@@ -419,6 +419,7 @@
   "未连接": "Not connected",
   "正在同步同盟状态…": "Syncing Alliance state…",
   "服务器已更新，本局结束后刷新": "The server was updated. The page will refresh after this match",
+  "战斗模块加载不完整，请刷新页面": "Part of the battle simulation failed to load. Please reload the page.",
   "刷新页面": "Refresh Page",
   "与服务器的连接已中断，正在重连": "Connection to the server was lost. Reconnecting",
   "立即重连": "Reconnect Now",

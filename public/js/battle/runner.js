@@ -140,9 +140,19 @@ function deepFreeze(root) {
  * content bug that writes into a record fails identically on both sides).
  */
 export async function loadBrowserSim({ base = '/sim/', dataBase = '/data/', fetchFn = (...a) => globalThis.fetch(...a) } = {}) {
-  const [spec, simdata, support] = await Promise.all([
-    import(`${base}spec.js`), import(`${base}simdata.js`), import(`${base}content/support/index.js`),
+  const [spec, simdata, support, content] = await Promise.all([
+    import(`${base}spec.js`), import(`${base}simdata.js`), import(`${base}content/support/index.js`), import(`${base}content/index.js`),
   ]);
+  // the same for the content modules (bonds, enemies, kits…): one that failed to load (a reload on a flaky network) runs
+  // as an empty module — 炎 without 炎佑, generic skills — and the page keeps that module until it is reloaded, so the
+  // failure is final for this page: no battle is simulated here (the server takes the fields over) and the page asks
+  // for a reload (ui.simBroken, ui/connBanner.js)
+  const lost = typeof content.contentLoadFailures === 'function' ? content.contentLoadFailures() : [];
+  if (lost.length) {
+    const err = new Error(`simulation content unavailable: ${lost.join(', ')}`);
+    err.code = 'SIM_CONTENT';
+    throw err;
+  }
   const fetchOnce = async (n) => {
     try {
       const res = await fetchFn(`${dataBase}${n}.json`, { cache: 'no-cache' });
@@ -652,6 +662,7 @@ export function createBattleRunner(deps) {
     let sim;
     try { sim = await ensureSim(); } catch (err) {
       console.warn('[runner] simulation unavailable', err);
+      if (err && err.code === 'SIM_CONTENT') { try { store.patch('ui', { simBroken: true }); } catch { /* ignore */ } }
       if (seq === startSeq) { loading = null; publishState(); }
       return;
     }

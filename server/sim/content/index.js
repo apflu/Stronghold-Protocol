@@ -28,13 +28,16 @@
 
 import { genericKit, genericTalents } from './generic.js';
 import { withUnitLoadouts } from '../simdata.js';
+import { noteLoadFailure, loadFailures } from './loadFailures.js';
 
 // Content files are loaded with guarded dynamic imports: a module that fails to load (syntax error, throwing
-// top-level code, missing file) is logged and replaced by an empty module instead of breaking the server.
+// top-level code, missing file) is logged and replaced by an empty module instead of breaking the server. Each such
+// module is listed in contentLoadFailures() (./loadFailures.js — a browser must not simulate with part of it missing).
 async function safeImport(path) {
   try {
     return await import(path);
   } catch (e) {
+    noteLoadFailure(`content/${path.replace(/^\.\//, '')}`);
     console.error(`[content] failed to load ${path}: ${e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e}`);
     return {};
   }
@@ -50,6 +53,9 @@ const tokens = DOMAINS[0];
  * (kits/index.js; each kit file is loaded guarded too)
  */
 export const KITS = KIT_REGISTRY.KITS ?? Object.freeze({});
+
+/** The content modules (domains, kit files) that failed to load and run as empty modules; [] when all loaded. */
+export const contentLoadFailures = loadFailures;
 
 /** Domain modules in install order: tokens, devices, enemies, bosses, bonds, garrisons, items, bands, choices. */
 export const MODULES = Object.freeze(DOMAIN_NAMES.map((n, i) => [n, DOMAINS[i]]));

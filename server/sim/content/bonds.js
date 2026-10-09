@@ -9,10 +9,13 @@
 // content/index.js records it in battle.errors / the server log).
 // Membership (own bonds, 变形同构体 grants, 调和 enjoying active core bonds) lives in support/index.js.
 
+import { noteLoadFailure } from './loadFailures.js';
+
 async function load(path) {
   try {
     return await import(path);
   } catch (e) {
+    noteLoadFailure(`content/${path.replace(/^\.\//, '')}`);
     console.error(`[content] failed to load ${path}: ${e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e}`);
     return {};
   }

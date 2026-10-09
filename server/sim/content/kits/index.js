@@ -23,6 +23,8 @@
 // KITTED_CHARS = every character a 自选 pick may field with a faithful kit; an operator outside it is not offered
 // (shared/diy.js diyPool / validateDiyPicks `kitted`).
 
+import { noteLoadFailure } from '../loadFailures.js';
+
 export const KIT_FILES = Object.freeze([
   // tier 1
   ['chess_char_1_01-inside.js', 'chess_char_1_02-yak.js', 'chess_char_1_03-leizi.js', 'chess_char_1_04-udflow.js',
@@ -164,6 +166,7 @@ async function loadKitFile(file) {
   try {
     return await import(`./ops/${file}`);
   } catch (e) {
+    noteLoadFailure(`content/kits/ops/${file}`);
     console.error(`[content] failed to load kits/ops/${file}: ${e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e}`);
     return {};
   }
