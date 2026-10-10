@@ -127,4 +127,4 @@ SIM_E2E=1 node --test 'test/sim/*.browser.test.js'               # 浏览器里�
 - **Adding an operator (自选)**: follow "How to add an operator (自选)" in
   [server/sim/content/kits/README.md](server/sim/content/kits/README.md): `op-<codename>.js` keyed by the charId,
   registered in `OPERATOR_KIT_FILES`, a test `test/content/op_<codename>.test.js`, the fidelity checklist in the pull
-  request. All 72 operators of the current pool (upstream's 71 plus 丰川祥子, a wjx addition) have kits; improvements follow the same checklist (GitHub issue #136).
+  request. All 73 operators of the current pool (upstream's 72 plus 丰川祥子, a wjx addition) have kits; improvements follow the same checklist (GitHub issue #136).
