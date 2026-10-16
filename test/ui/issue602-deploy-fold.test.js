@@ -61,7 +61,7 @@ describe('game.js wiring', () => {
   const game = read('public/js/screens/game.js');
 
   test('deployFold is derived from the interaction state on the own editable prep board, never written into `collapsed`', () => {
-    assert.match(game, /const deployFold = deployFoldsShop\(\{\n\s+ownPrep: !!view && viewModeRef\.current === 'prep' && showPrep, editable, pen, drag: !!drag, facing: !!facing,\n\s+\}\);/);
+    assert.match(game, /const deployFold = deployZoomSetting && deployFoldsShop\(\{\n\s+ownPrep: !!view && viewModeRef\.current === 'prep' && showPrep, editable, pen, drag: !!drag, facing: !!facing,\n\s+\}\);/);
     // the player's own state feeds the camera state only ORed with the temporary fold (pen behavior untouched)
     assert.match(game, /const shopFolded = showShop && \(pen \? penRef\.current\.collapsed : \(collapsed \|\| deployFold\)\);/);
     assert.match(game, /const barCollapsed = collapsed \|\| deployFold;/);
@@ -142,5 +142,26 @@ describe('0.3.0 port of PR #646', () => {
 
   test('a drag under a still pointer follows a camera flight (the pickup zoom): the view judges it again every flying frame', () => {
     assert.match(app, /const flying = !!camTo;\n\s+stepCamera\(now\);\n[\s\S]{0,300}?if \(flying && mode === 'prep' && drag\.dragging\) drag\.refresh\(\);/);
+  });
+});
+
+// ---- wjx: 设置「部署时放大棋盘」 switches the deploy fold off ------------------------------------------------------
+
+describe('wjx deployZoom setting', async () => {
+  const { sanitizeSettings, DEFAULT_SETTINGS } = await import('../../public/js/ui/gameLogic.js');
+
+  test('on by default (the official behaviour) and for a profile saved before it; a boolean kept, junk on', () => {
+    assert.equal(DEFAULT_SETTINGS.deployZoom, true);
+    assert.equal(sanitizeSettings(null).deployZoom, true);
+    assert.equal(sanitizeSettings({ bgm: 0.4 }).deployZoom, true);
+    assert.equal(sanitizeSettings({ deployZoom: false }).deployZoom, false);
+    for (const bad of ['false', 0, null, {}]) assert.equal(sanitizeSettings({ deployZoom: bad }).deployZoom, true, JSON.stringify(bad));
+  });
+
+  test('the match screen reads it and the settings modal has its switch', () => {
+    const game = read('public/js/screens/game.js');
+    assert.match(game, /const deployZoomSetting = settingsNow\.deployZoom !== false;/);
+    const settings = read('public/js/ui/settings.js');
+    assert.match(settings, /<\$\{Toggle\} label=\$\{t\('部署时放大棋盘'\)\} micro="DEPLOY ZOOM" value=\$\{s\.deployZoom\}/);
   });
 });

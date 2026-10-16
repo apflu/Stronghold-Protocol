@@ -182,7 +182,9 @@ function MatchScreen() {
   const emotes = useStore((s) => s.emotes);
   const roomSolo = useStore((s) => s.room?.mode === 'solo');
   const spectator = useStore((s) => isSpectating(s.room, s.me.playerId));
-  const metricsSetting = useSettings().combatMetrics === true;
+  const settingsNow = useSettings();
+  const metricsSetting = settingsNow.combatMetrics === true;
+  const deployZoomSetting = settingsNow.deployZoom !== false;
   // gameplay plugins (DESIGN §32.6): the HUD corner's MOD mark — re-rendered only when the room's content changes
   const modRoom = useStore((s) => (s.room?.content?.vanilla === false ? s.room : null), (a, b) => (a?.content ?? null) === (b?.content ?? null));
   // the room's spectator seats for the top bar's 观战席 capsule (ui/hud.js SpectatorPill; GitHub #120): room.state keeps coming
@@ -423,7 +425,8 @@ function MatchScreen() {
   // direction wheel a legal drop opens — the official client folds the shop and zooms to the shop-collapsed prep
   // camera (the same framing as 收起, left_prepare_camera_param), then gives the player's own shop state back. It is
   // derived from the interaction state only: `collapsed` (the 收起/展开 state) is never set by it.
-  const deployFold = deployFoldsShop({
+  // wjx: 设置「部署时放大棋盘」 off keeps the camera still through the drag (the board stays at the player's own fold)
+  const deployFold = deployZoomSetting && deployFoldsShop({
     ownPrep: !!view && viewModeRef.current === 'prep' && showPrep, editable, pen, drag: !!drag, facing: !!facing,
   });
   // the shop bar is shown folded (收起; the pen folds it for itself: the player's own state is the one it returns to) —
