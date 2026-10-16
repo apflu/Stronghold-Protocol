@@ -12,8 +12,8 @@
 //   use_equip_gain_coin_when_next_round_start {count}     见钱眼开玩偶           +count funds next round
 //   equip_destory_deployment_cnt_change {count}           人事部文档             deploy cap = count
 //   use_equip_upgrade_char / equip_round_start_upgrade_char 博士投影             promote (golden: now, normal: next round)
-//   use_equip_reward_char_chess                           拟态物质               3rd copy (made from nothing when
-//                                                                                the pool is out), or with < 2 a same-bond chess
+//   use_equip_reward_char_chess                           拟态物质               3rd copy (none when the pool is
+//                                                                                out), or with < 2 a same-bond chess
 //   use_equip_reward_special_goods_char_chess {refresh_cnt} 寻呼模块             offer N same-bond chess (≤ shop level)
 //   use_equip_recruit_new_char_and_give_char_to_player_most_bond {refresh_cnt} 信标 destroy target, offer N same-tier
 //                                                                                chess, gift the original (an elite stays
@@ -143,22 +143,20 @@ const ITEM_HANDLERS = {
     },
   },
   // 拟态物质 「若已拥有至少2名该初始干员，则再获得1名该初始干员；否则随机获得1名同盟约初始干员」: the 否则 is the owned < 2
-  // case only. With 2 copies owned and none left in the pool (an elite holds 3 of a Ⅵ阶's 5) the grant fails and the
-  // item gives nothing (research 06 §7: some effects fail at the copy cap) — it never falls back to a same-bond operator
-  // (GitHub #207).
+  // case only. The original experiment BV1eLXXBqEgF (3:00) distinguishes this item from pool-weighted grants:
+  // it samples eligible operator identities and can grant beyond stock. All obtained copies still occupy the pool.
   use_equip_reward_char_chess: {
     onEquip(ctx, ev) {
       const base = ctx.gd.baseIdOf(ev.target.id);
       const owned = [...ctx.board(), ...ctx.hand(), ...ctx.temp()].filter((p) => p && p.kind === 'chess' && !p.golden && ctx.gd.baseIdOf(p.id) === base).length;
-      // with 2 owned the 3rd copy comes even when the pool has none left — made from nothing, as 画卷's copy (wjx instance,
-      // the owner's account of the game 2026-10-08; upstream / GitHub #207 gives nothing then). It takes the copies the
-      // pool still has (acquireChess), so selling it never returns more than were taken.
       if (owned >= 2) {
-        if (!ctx.grantChess(base, { requirePool: false })) toastNothing(ctx, ev, ctx.gd.chess(base)?.name || null);
+        if (!ctx.grantChess(base, { requirePool: false })) toastNothing(ctx, ev);
         return;
       }
-      const id = rollSameBond(ctx, ctx.pieceBonds(ev.target.uid), 6);
-      if (!id || !ctx.grantChess(id)) toastNothing(ctx, ev);
+      const bonds = new Set(ctx.pieceBonds(ev.target.uid));
+      const id = ctx.rollChess({ maxTier: 6, ignoreCounts: true,
+        filter: cid => ctx.gd.chess(cid)?.bonds?.some(b => bonds.has(b)) });
+      if (!id || !ctx.grantChess(id, { requirePool: false })) toastNothing(ctx, ev);
     },
   },
   use_equip_reward_special_goods_char_chess: {
@@ -288,7 +286,8 @@ const EFFECT_HANDLERS = {
       to.giftTicker(ctx.name, p.chessId, ctx.playerId);
     },
   },
-  // 整备: the next purchased item becomes advanced (golden)
+  // 整备: the next purchased item becomes advanced (golden). upgradeItem leaves it normal, and this
+  // charge unspent, when the shared stock has no room for the golden's second copy.
   builtin_next_buy_golden_item: {
     onBuy(ctx, ev) {
       const ref = ctx.source.ref;
